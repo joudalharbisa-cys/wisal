@@ -5,6 +5,7 @@ const MESSAGES: Record<ServiceErrorCode, string> = {
   'email-in-use': 'هذا البريد مسجّل من قبل',
   'weak-password': 'كلمة المرور لازم تكون 8 أحرف على الأقل',
   network: 'تعذّر الاتصال، حاول مرة ثانية',
+  'invalid-email': 'صيغة البريد غير صحيحة',
   'invalid-transition': 'صار خطأ غير متوقع، حاول مرة ثانية',
   unknown: 'صار خطأ غير متوقع، حاول مرة ثانية',
 }
@@ -17,7 +18,7 @@ const FIREBASE: Record<string, ServiceErrorCode> = {
   'auth/invalid-credential': 'wrong-credentials',
   'auth/wrong-password': 'wrong-credentials',
   'auth/user-not-found': 'wrong-credentials',
-  'auth/invalid-email': 'wrong-credentials',
+  'auth/invalid-email': 'invalid-email',
   'auth/email-already-in-use': 'email-in-use',
   'auth/weak-password': 'weak-password',
   'auth/network-request-failed': 'network',
@@ -32,4 +33,11 @@ export function toServiceError(e: unknown): ServiceError {
 
 export function errorMessage(e: unknown): string {
   return authErrorMessage(toServiceError(e).code)
+}
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/** Basic format check before calling Firebase. */
+export function isEmail(v: string): boolean {
+  return EMAIL.test(v.trim())
 }

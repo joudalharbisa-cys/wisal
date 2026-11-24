@@ -2,7 +2,7 @@ import type { Org, OrgApplication, OrgWithId } from '../features/orgs/types'
 
 export type AuthUser = { uid: string; email: string }
 
-export type ServiceErrorCode = 'wrong-credentials' | 'email-in-use' | 'weak-password' | 'network' | 'invalid-transition' | 'unknown'
+export type ServiceErrorCode = 'wrong-credentials' | 'email-in-use' | 'weak-password' | 'invalid-email' | 'network' | 'invalid-transition' | 'unknown'
 
 export class ServiceError extends Error {
   code: ServiceErrorCode

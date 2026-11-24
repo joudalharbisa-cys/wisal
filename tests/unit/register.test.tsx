@@ -22,14 +22,14 @@ async function chooseRole(name: 'مستشفى' | 'جمعية') {
   await userEvent.click(screen.getByRole('button', { name: 'التالي' }))
 }
 
-async function fillHospital({ account = true, password = 'password123', confirm = 'password123' } = {}) {
+async function fillHospital({ account = true, password = 'password123', confirm = 'password123', email = 'h@test.sa' } = {}) {
   await userEvent.type(screen.getByLabelText('اسم الجهة'), 'مستشفى الملك فهد')
   await userEvent.selectOptions(screen.getByLabelText('المدينة'), 'جدة')
   await userEvent.type(screen.getByLabelText('الحي'), 'الشرفية')
   await userEvent.type(screen.getByLabelText('رقم الترخيص'), 'MOH-12345')
   await userEvent.click(screen.getByRole('radio', { name: 'حكومي' }))
   if (account) {
-    await userEvent.type(screen.getByLabelText('البريد الإلكتروني'), 'h@test.sa')
+    await userEvent.type(screen.getByLabelText('البريد الإلكتروني'), email)
     await userEvent.type(screen.getByLabelText('كلمة المرور'), password)
     await userEvent.type(screen.getByLabelText('تأكيد كلمة المرور'), confirm)
   }
@@ -132,5 +132,14 @@ it('an email already in use sends the user back to details with a message', asyn
   await signContract()
   await userEvent.click(screen.getByRole('button', { name: 'وقّع وأرسل الطلب' }))
   expect(await screen.findByText('هذا البريد مسجّل من قبل')).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'بيانات الجهة' })).toBeInTheDocument()
+})
+
+it('rejects a malformed email on the details step', async () => {
+  setup()
+  await chooseRole('مستشفى')
+  await fillHospital({ email: 'ahmed.gmail.com' })
+  await userEvent.click(screen.getByRole('button', { name: 'التالي' }))
+  expect(screen.getByText('صيغة البريد غير صحيحة')).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'بيانات الجهة' })).toBeInTheDocument()
 })

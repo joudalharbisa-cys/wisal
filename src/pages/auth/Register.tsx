@@ -7,7 +7,7 @@ import Button from '../../components/ui/Button'
 import ChoiceGroup from '../../components/ui/ChoiceGroup'
 import Field from '../../components/ui/Field'
 import Input from '../../components/ui/Input'
-import { errorMessage, toServiceError } from '../../features/auth/errors'
+import { errorMessage, isEmail, toServiceError } from '../../features/auth/errors'
 import { CONTRACT } from '../../features/orgs/contract'
 import { toApplication } from '../../features/orgs/application'
 import type { OrgRole } from '../../features/orgs/types'
@@ -65,6 +65,7 @@ export default function Register() {
     const a: AccountErrors = {}
     if (needsAccount) {
       if (!account.email.trim()) a.email = 'اكتب البريد الإلكتروني'
+      else if (!isEmail(account.email)) a.email = 'صيغة البريد غير صحيحة'
       if (account.password.length < 8) a.password = 'كلمة المرور لازم تكون 8 أحرف على الأقل'
       if (account.confirm !== account.password) a.confirm = 'كلمتا المرور غير متطابقتين'
     }
@@ -90,7 +91,7 @@ export default function Register() {
     } catch (err) {
       const code = toServiceError(err).code
       setFailure(errorMessage(err))
-      if (code === 'email-in-use' || code === 'weak-password') setStep(1)
+      if (code === 'email-in-use' || code === 'weak-password' || code === 'invalid-email') setStep(1)
       submitting.current = false
       setBusy(false)
     }
