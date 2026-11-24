@@ -26,3 +26,6 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .claude/
+.firebase-emulators/
+firestore-debug.log
+firebase-debug.log

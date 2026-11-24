@@ -6,11 +6,25 @@ import '@fontsource/ibm-plex-sans-arabic/500.css'
 import '@fontsource/ibm-plex-sans-arabic/700.css'
 import './styles/theme.css'
 import App from './App'
+import ConfigError from './components/ConfigError'
+import { getFirebaseConfig, MissingConfigError } from './lib/firebase'
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
+function Root() {
+  try {
+    getFirebaseConfig(import.meta.env)
+  } catch (e) {
+    if (e instanceof MissingConfigError) return <ConfigError missing={e.missing} />
+    throw e
+  }
+  return (
     <BrowserRouter>
       <App />
     </BrowserRouter>
+  )
+}
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <Root />
   </StrictMode>,
 )
