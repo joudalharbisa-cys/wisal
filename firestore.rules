@@ -1,9 +1,68 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Deny everything until later phases open specific paths.
-    match /{document=**} {
-      allow read, write: if false;
+
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    function isStr(v, min, max) { return v is string && v.size() >= min && v.size() <= max; }
+
+    // Wesal admins are added by hand in the console; clients may only check their own entry.
+    match /admins/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+    }
+
+    match /orgs/{uid} {
+      // Shape checks shared by create and resubmit.
+      function validFields(d) {
+        return d.role in ['hospital', 'charity']
+          && isStr(d.name, 2, 100)
+          && isStr(d.city, 2, 40)
+          && isStr(d.district, 1, 60)
+          && isStr(d.licenseNo, 3, 30);
+      }
+      function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['role', 'name', 'city', 'district', 'licenseNo', 'hospitalType',
+                                                 'workingHours', 'canDeliver', 'status', 'contactEmail', 'contract',
+                                                 'createdAt', 'updatedAt'])
+        && validFields(request.resource.data)
+        && request.resource.data.status == 'pending'
+        && request.resource.data.contactEmail == request.auth.token.email
+        && request.resource.data.contract.keys().hasOnly(['version', 'acceptedAt', 'acceptedByName'])
+        && request.resource.data.contract.version is string
+        && isStr(request.resource.data.contract.acceptedByName, 3, 100)
+        && request.resource.data.contract.acceptedAt == request.time
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+
+      // Owner: only a rejected application can be edited, and only back to pending.
+      // rejectReason and review fields stay as the admin left them.
+      allow update: if signedIn() && request.auth.uid == uid
+        && resource.data.status == 'rejected'
+        && request.resource.data.status == 'pending'
+        && changed().hasOnly(['name', 'city', 'district', 'licenseNo', 'hospitalType',
+                              'workingHours', 'canDeliver', 'status', 'updatedAt'])
+        && validFields(request.resource.data)
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.updatedAt == request.time;
+
+      // Admin: review decision only; a rejection needs a reason.
+      allow update: if isAdmin()
+        && changed().hasOnly(['status', 'rejectReason', 'reviewedBy', 'reviewedAt', 'updatedAt'])
+        && request.resource.data.status in ['approved', 'rejected']
+        && (request.resource.data.status == 'approved' || isStr(request.resource.data.rejectReason, 3, 500))
+        && request.resource.data.reviewedBy == request.auth.uid
+        && request.resource.data.reviewedAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if false;
     }
   }
 }
