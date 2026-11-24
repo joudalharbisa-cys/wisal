@@ -20,7 +20,18 @@ service cloud.firestore {
           && isStr(d.name, 2, 100)
           && isStr(d.city, 2, 40)
           && isStr(d.district, 1, 60)
-          && isStr(d.licenseNo, 3, 30);
+          && isStr(d.licenseNo, 3, 30)
+          && validRoleFields(d);
+      }
+      // Each role carries only its own fields (spec §٥).
+      function validRoleFields(d) {
+        return (d.role == 'hospital'
+                && d.get('hospitalType', null) in ['gov', 'private']
+                && !('workingHours' in d) && !('canDeliver' in d))
+          || (d.role == 'charity'
+                && isStr(d.get('workingHours', null), 1, 100)
+                && d.get('canDeliver', null) is bool
+                && !('hospitalType' in d));
       }
       function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
 
@@ -33,7 +44,7 @@ service cloud.firestore {
         && request.resource.data.status == 'pending'
         && request.resource.data.contactEmail == request.auth.token.email
         && request.resource.data.contract.keys().hasOnly(['version', 'acceptedAt', 'acceptedByName'])
-        && request.resource.data.contract.version is string
+        && isStr(request.resource.data.contract.version, 1, 20)
         && isStr(request.resource.data.contract.acceptedByName, 3, 100)
         && request.resource.data.contract.acceptedAt == request.time
         && request.resource.data.createdAt == request.time
@@ -53,11 +64,13 @@ service cloud.firestore {
         && request.resource.data.role == resource.data.role
         && request.resource.data.updatedAt == request.time;
 
-      // Admin: review decision only; a rejection needs a reason.
+      // Admin: review decision on a pending application only; every rejection writes a fresh reason.
       allow update: if isAdmin()
+        && resource.data.status == 'pending'
         && changed().hasOnly(['status', 'rejectReason', 'reviewedBy', 'reviewedAt', 'updatedAt'])
         && request.resource.data.status in ['approved', 'rejected']
-        && (request.resource.data.status == 'approved' || isStr(request.resource.data.rejectReason, 3, 500))
+        && (request.resource.data.status == 'approved'
+            || ('rejectReason' in changed() && isStr(request.resource.data.rejectReason, 3, 500)))
         && request.resource.data.reviewedBy == request.auth.uid
         && request.resource.data.reviewedAt == request.time
         && request.resource.data.updatedAt == request.time;

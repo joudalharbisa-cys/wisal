@@ -121,6 +121,50 @@ describe('admin review', () => {
   })
 })
 
+describe('review fixes: role-specific fields', () => {
+  const charityApp = (uid: string, over: Record<string, unknown> = {}) =>
+    application(uid, { role: 'charity', hospitalType: undefined, workingHours: 'الأحد-الخميس', canDeliver: true, ...over })
+  const clean = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined))
+
+  it('charity application with working hours and delivery succeeds', async () => {
+    await assertSucceeds(user('u1').doc('orgs/u1').set(clean(charityApp('u1'))))
+  })
+  it('charity cannot carry a hospital type', async () => {
+    await assertFails(user('u1').doc('orgs/u1').set(clean(charityApp('u1', { hospitalType: 'gov' }))))
+  })
+  it('charity must give working hours and a boolean delivery flag', async () => {
+    await assertFails(user('u1').doc('orgs/u1').set(clean(charityApp('u1', { workingHours: undefined }))))
+    await assertFails(user('u1').doc('orgs/u1').set(clean(charityApp('u1', { canDeliver: 'yes' }))))
+  })
+  it('working hours are size-limited', async () => {
+    await assertFails(user('u1').doc('orgs/u1').set(clean(charityApp('u1', { workingHours: 'x'.repeat(101) }))))
+  })
+  it('hospital needs a valid hospital type and no charity fields', async () => {
+    await assertFails(user('u1').doc('orgs/u1').set(application('u1', { hospitalType: { evil: true } })))
+    await assertFails(user('u1').doc('orgs/u1').set(application('u1', { canDeliver: true })))
+  })
+  it('contract version must be a short string', async () => {
+    await assertFails(user('u1').doc('orgs/u1').set(application('u1', { contract: { version: 'v'.repeat(21), acceptedAt: ts(), acceptedByName: 'أحمد الغامدي' } })))
+  })
+  it('resubmit cannot drop the hospital type', async () => {
+    await seed('orgs/u1', stored('rejected', { rejectReason: 'الترخيص منتهي' }))
+    await assertFails(user('u1').doc('orgs/u1').update({ status: 'pending', hospitalType: firebase.firestore.FieldValue.delete(), updatedAt: ts() }))
+  })
+})
+
+describe('review fixes: admin decisions only on pending', () => {
+  beforeEach(async () => { await seed('admins/a1', { name: 'مدير' }) })
+  it('admin cannot reject an already approved org', async () => {
+    await seed('orgs/u1', stored('approved'))
+    await assertFails(user('a1').doc('orgs/u1').update({ status: 'rejected', rejectReason: 'غيّرنا رأينا', reviewedBy: 'a1', reviewedAt: ts(), updatedAt: ts() }))
+  })
+  it('rejecting a resubmitted application needs a new reason', async () => {
+    await seed('orgs/u1', stored('pending', { rejectReason: 'الترخيص منتهي' }))
+    await assertFails(user('a1').doc('orgs/u1').update({ status: 'rejected', reviewedBy: 'a1', reviewedAt: ts(), updatedAt: ts() }))
+    await assertSucceeds(user('a1').doc('orgs/u1').update({ status: 'rejected', rejectReason: 'الاسم لا يطابق الترخيص', reviewedBy: 'a1', reviewedAt: ts(), updatedAt: ts() }))
+  })
+})
+
 describe('admins and deletes', () => {
   it('nobody can write admins', async () => {
     await assertFails(user('u1').doc('admins/u1').set({ name: 'أنا' }))

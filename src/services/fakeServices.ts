@@ -43,6 +43,11 @@ export function createFakeServices(seed: Seed = {}) {
     if (!o) throw new ServiceError('invalid-transition', 'no org')
     return o
   }
+  const mustPending = (uid: string) => {
+    const o = mustOrg(uid)
+    if (o.status !== 'pending') throw new ServiceError('invalid-transition', 'only pending can be reviewed')
+    return o
+  }
 
   const services: Services = {
     auth: {
@@ -108,13 +113,13 @@ export function createFakeServices(seed: Seed = {}) {
         return () => pendingCbs.delete(cb)
       },
       async approve(orgId, adminUid) {
-        const o = mustOrg(orgId)
+        const o = mustPending(orgId)
         const t = now()
         state.orgs.set(orgId, { ...o, status: 'approved', reviewedBy: adminUid, reviewedAt: t, updatedAt: t })
         emitOrg(orgId)
       },
       async reject(orgId, adminUid, reason) {
-        const o = mustOrg(orgId)
+        const o = mustPending(orgId)
         if (reason.trim().length < 3) throw new ServiceError('invalid-transition', 'reason required')
         const t = now()
         state.orgs.set(orgId, { ...o, status: 'rejected', rejectReason: reason.trim(), reviewedBy: adminUid, reviewedAt: t, updatedAt: t })

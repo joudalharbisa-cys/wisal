@@ -62,6 +62,15 @@ it('resubmit is only allowed from rejected and keeps the reason', async () => {
   expect(org.value).toMatchObject({ status: 'pending', name: 'مستشفى الملك فهد العام', rejectReason: 'الترخيص منتهي' })
 })
 
+it('admin decisions only apply to pending applications (mirrors the rules)', async () => {
+  const s = createFakeServices({ admins: ['a1'] })
+  const user = await s.auth.signUp('h@test.sa', 'password123')
+  await s.orgs.submitApplication(user, app, 'أحمد الغامدي')
+  await s.admin.approve(user.uid, 'a1')
+  await expect(s.admin.reject(user.uid, 'a1', 'غيّرنا رأينا')).rejects.toMatchObject({ code: 'invalid-transition' })
+  await expect(s.admin.approve(user.uid, 'a1')).rejects.toMatchObject({ code: 'invalid-transition' })
+})
+
 it('watchPending lists only pending orgs, oldest first', async () => {
   const s = createFakeServices({ admins: ['a1'] })
   const a = await s.auth.signUp('a@test.sa', 'password123')
