@@ -143,3 +143,11 @@ it('rejects a malformed email on the details step', async () => {
   expect(screen.getByText('صيغة البريد غير صحيحة')).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'بيانات الجهة' })).toBeInTheDocument()
 })
+
+it('signed-in user without an org can sign out from registration', async () => {
+  const s = createFakeServices({ users: [{ uid: 'u1', email: 'h@test.sa', password: 'password123' }], signedIn: 'u1' })
+  setup(s)
+  expect(await screen.findByText('h@test.sa')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'تسجيل الخروج' }))
+  expect(await screen.findByRole('heading', { name: 'تسجيل الدخول' })).toBeInTheDocument()
+})

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Building2, Check, HandHeart } from 'lucide-react'
 import LogoMark from '../../components/brand/LogoMark'
 import Alert from '../../components/ui/Alert'
@@ -7,6 +7,7 @@ import Button from '../../components/ui/Button'
 import ChoiceGroup from '../../components/ui/ChoiceGroup'
 import Field from '../../components/ui/Field'
 import Input from '../../components/ui/Input'
+import LtrText from '../../components/ui/LtrText'
 import { errorMessage, isEmail, toServiceError } from '../../features/auth/errors'
 import { CONTRACT } from '../../features/orgs/contract'
 import { toApplication } from '../../features/orgs/application'
@@ -46,6 +47,7 @@ export default function Register() {
   const services = useServices()
   const session = useCurrentSession()
   const needsAccount = session.kind === 'anonymous'
+  const navigate = useNavigate()
 
   const [step, setStep] = useState(0)
   const [draft, setDraft] = useState<Draft>({})
@@ -106,6 +108,12 @@ export default function Register() {
       <p className="mb-8 mt-1 text-sm text-muted">
         بعد الإرسال تراجع إدارة وصال طلبك. {needsAccount && <>عندك حساب؟ <Link to="/login" className="font-medium text-primary hover:underline">تسجيل الدخول</Link></>}
       </p>
+      {session.kind === 'member' && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-control bg-surface px-4 py-3 text-sm ring-1 ring-inset ring-line">
+          <span>تكمّل التسجيل بحساب <LtrText>{session.user.email}</LtrText></span>
+          <Button variant="outline" onClick={async () => { await services.auth.signOut(); navigate('/login', { replace: true }) }}>تسجيل الخروج</Button>
+        </div>
+      )}
       <Stepper step={step} />
       {failure && <div className="mb-5"><Alert tone="danger">{failure}</Alert></div>}
 
