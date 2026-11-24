@@ -8,6 +8,8 @@ import './styles/theme.css'
 import App from './App'
 import ConfigError from './components/ConfigError'
 import { getFirebaseConfig, MissingConfigError } from './lib/firebase'
+import { createFirebaseServices } from './services/firebaseServices'
+import { ServicesProvider } from './services/ServicesContext'
 
 function Root() {
   try {
@@ -17,9 +19,11 @@ function Root() {
     throw e
   }
   return (
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <ServicesProvider services={createFirebaseServices()}>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </ServicesProvider>
   )
 }
 
