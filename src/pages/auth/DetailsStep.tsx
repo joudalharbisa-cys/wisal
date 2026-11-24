@@ -3,10 +3,8 @@ import Field from '../../components/ui/Field'
 import Input from '../../components/ui/Input'
 import Select from '../../components/ui/Select'
 import { CITIES } from '../../features/orgs/cities'
-import type { OrgApplication } from '../../features/orgs/types'
+import type { Draft } from '../../features/orgs/application'
 import type { ApplicationErrors } from '../../features/orgs/validate'
-
-export type Draft = Partial<OrgApplication>
 
 /** Org data form shared by registration and the rejected-application edit. */
 export default function DetailsStep({ value, onChange, errors }: { value: Draft; onChange: (patch: Draft) => void; errors: ApplicationErrors }) {

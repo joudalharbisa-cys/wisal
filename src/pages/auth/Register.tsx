@@ -9,13 +9,15 @@ import Field from '../../components/ui/Field'
 import Input from '../../components/ui/Input'
 import { errorMessage, toServiceError } from '../../features/auth/errors'
 import { CONTRACT } from '../../features/orgs/contract'
-import type { OrgApplication, OrgRole } from '../../features/orgs/types'
+import { toApplication } from '../../features/orgs/application'
+import type { OrgRole } from '../../features/orgs/types'
 import { validateApplication, type ApplicationErrors } from '../../features/orgs/validate'
 import AuthLayout from '../../layout/AuthLayout'
 import { useServices } from '../../services/ServicesContext'
 import type { AuthUser } from '../../services/types'
 import { useCurrentSession } from '../../session/Guard'
-import DetailsStep, { type Draft } from './DetailsStep'
+import DetailsStep from './DetailsStep'
+import type { Draft } from '../../features/orgs/application'
 
 const STEPS = ['نوع الجهة', 'بيانات الجهة', 'عقد التعاون'] as const
 type AccountErrors = { email?: string; password?: string; confirm?: string }
@@ -38,14 +40,6 @@ function Stepper({ step }: { step: number }) {
       })}
     </ol>
   )
-}
-
-/** Only the fields that belong to the chosen role, trimmed. */
-function toApplication(d: Draft): OrgApplication {
-  const base = { role: d.role!, name: d.name!.trim(), city: d.city!, district: d.district!.trim(), licenseNo: d.licenseNo!.trim() }
-  return d.role === 'hospital'
-    ? { ...base, hospitalType: d.hospitalType }
-    : { ...base, workingHours: d.workingHours!.trim(), canDeliver: d.canDeliver }
 }
 
 export default function Register() {
