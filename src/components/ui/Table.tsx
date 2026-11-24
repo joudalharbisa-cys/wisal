@@ -2,20 +2,20 @@ import type { ReactNode } from 'react'
 
 export default function Table({ columns, rows }: { columns: string[]; rows: ReactNode[][] }) {
   return (
-    <div className="overflow-x-auto rounded-card border border-line">
-      <table className="w-full min-w-max text-start">
-        <thead className="bg-primary-light text-primary-dark">
-          <tr>
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-max text-start text-sm">
+        <thead>
+          <tr className="border-b border-line">
             {columns.map(c => (
-              <th key={c} scope="col" className="px-4 py-2 text-start font-bold">{c}</th>
+              <th key={c} scope="col" className="px-4 py-3 text-start text-xs font-medium text-muted">{c}</th>
             ))}
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-line">
           {rows.map((r, i) => (
-            <tr key={i} className="odd:bg-white even:bg-surface">
+            <tr key={i} className="transition-colors hover:bg-surface">
               {r.map((cell, j) => (
-                <td key={j} className="border-t border-line px-4 py-2">{cell}</td>
+                <td key={j} className="px-4 py-3.5 tabular-nums">{cell}</td>
               ))}
             </tr>
           ))}

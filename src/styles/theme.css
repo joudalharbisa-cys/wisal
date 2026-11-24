@@ -30,7 +30,7 @@
   --font-sans: "IBM Plex Sans Arabic", Tahoma, sans-serif;
 
   --radius-card: 16px;
-  --radius-control: 10px;
+  --radius-control: 8px;
 }
 
 @layer base {

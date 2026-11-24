@@ -31,3 +31,7 @@ it('every color used behind white text meets WCAG AA (4.5:1)', () => {
     expect(contrastWithWhite(hex), `${name} ${hex}`).toBeGreaterThanOrEqual(4.5)
   }
 })
+
+it('card corners follow the approved identity', () => {
+  expect(readFileSync(path, 'utf8')).toContain('--radius-card: 16px')
+})

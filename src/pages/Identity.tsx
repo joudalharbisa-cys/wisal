@@ -5,6 +5,8 @@ import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 import LtrText from '../components/ui/LtrText'
 import Table from '../components/ui/Table'
+import Field from '../components/ui/Field'
+import Input from '../components/ui/Input'
 
 // Full class strings so Tailwind generates them; values come from theme.css.
 const SWATCHES: [string, string][] = [
@@ -95,6 +97,13 @@ export default function Identity() {
             ['أسرّة طبية', 10, 'بانتظار جهة مناسبة'],
           ]}
         />
+      </Card>
+
+      <Card title="الحقول">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="اسم الجهة" hint="كما في الترخيص"><Input defaultValue="مستشفى الملك فهد" /></Field>
+          <Field label="رقم الترخيص" error="رقم الترخيص غير صحيح"><Input invalid dir="ltr" defaultValue="12" /></Field>
+        </div>
       </Card>
 
       <Card title="نص من اليسار لليمين داخل العربي">
