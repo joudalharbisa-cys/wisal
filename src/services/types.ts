@@ -24,7 +24,8 @@ export interface Services {
     signOut(): Promise<void>
   }
   orgs: {
-    watchOrg(uid: string, cb: (org: Org | null) => void): Unsubscribe
+    /** cb(null) only when the org is confirmed missing; failures go to onError. */
+    watchOrg(uid: string, cb: (org: Org | null) => void, onError?: (e: ServiceError) => void): Unsubscribe
     submitApplication(user: AuthUser, app: OrgApplication, acceptedByName: string): Promise<void>
     resubmit(uid: string, app: OrgApplication): Promise<void>
   }

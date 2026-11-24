@@ -18,13 +18,23 @@ export function useSession(): Session {
         return
       }
       setSession({ kind: 'loading' })
-      const admin = await services.admin.isAdmin(user.uid)
+      let admin: boolean
+      try {
+        admin = await services.admin.isAdmin(user.uid)
+      } catch {
+        if (alive) setSession({ kind: 'error' })
+        return
+      }
       if (!alive) return
       if (admin) {
         setSession({ kind: 'admin', user })
         return
       }
-      stopOrg = services.orgs.watchOrg(user.uid, org => alive && setSession({ kind: 'member', user, org }))
+      stopOrg = services.orgs.watchOrg(
+        user.uid,
+        org => alive && setSession({ kind: 'member', user, org }),
+        () => alive && setSession({ kind: 'error' }),
+      )
     })
     return () => {
       alive = false

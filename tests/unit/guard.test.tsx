@@ -45,3 +45,17 @@ it('shows a spinner while the session loads', () => {
   renderAt('/app', createFakeServices())
   expect(screen.getByRole('status')).toBeInTheDocument()
 })
+
+it('a failed admin check shows a retry screen instead of registration', async () => {
+  const s = createFakeServices({ users: [{ uid: 'u1', email: 'h@test.sa', password: 'x' }], signedIn: 'u1', failures: { isAdmin: true } })
+  renderAt('/app', s)
+  expect(await screen.findByText('تعذّر تحميل حسابك')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'حاول مرة ثانية' })).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'صفحة التسجيل' })).not.toBeInTheDocument()
+})
+
+it('a failed org listener shows the retry screen, not registration', async () => {
+  const s = createFakeServices({ users: [{ uid: 'u1', email: 'h@test.sa', password: 'x' }], signedIn: 'u1', failures: { watchOrg: true } })
+  renderAt('/app', s)
+  expect(await screen.findByText('تعذّر تحميل حسابك')).toBeInTheDocument()
+})

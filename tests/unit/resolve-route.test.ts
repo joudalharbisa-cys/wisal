@@ -12,6 +12,7 @@ const noOrg: Session = { kind: 'member', user, org: null }
 const pending: Session = { kind: 'member', user, org: org('pending') }
 const rejected: Session = { kind: 'member', user, org: org('rejected') }
 const approved: Session = { kind: 'member', user, org: org('approved') }
+const failed: Session = { kind: 'error' }
 
 it.each([
   [loading, '/app', { wait: true }],
@@ -34,6 +35,8 @@ it.each([
   [approved, '/app/settings', { allow: true }],
   [approved, '/login', { redirect: '/app' }],
   [approved, '/admin', { redirect: '/app' }],
+  [failed, '/app', { error: true }],
+  [failed, '/register', { error: true }],
   [anon, '/identity', { allow: true }],
   [approved, '/identity', { allow: true }],
 ] as const)('%o at %s', (session, path, expected) => {

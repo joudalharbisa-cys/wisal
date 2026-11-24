@@ -7,6 +7,8 @@ type Seed = {
   orgs?: Record<string, Org>
   admins?: string[]
   signedIn?: string
+  /** Simulate backend failures in tests. */
+  failures?: { isAdmin?: boolean; watchOrg?: boolean }
 }
 
 /** In-memory backend with the same transitions the security rules allow. Used by UI tests and local demos. */
@@ -77,7 +79,11 @@ export function createFakeServices(seed: Seed = {}) {
       },
     },
     orgs: {
-      watchOrg(uid, cb) {
+      watchOrg(uid, cb, onError) {
+        if (seed.failures?.watchOrg) {
+          queueMicrotask(() => onError?.(new ServiceError('network')))
+          return () => {}
+        }
         if (!orgCbs.has(uid)) orgCbs.set(uid, new Set())
         orgCbs.get(uid)!.add(cb)
         queueMicrotask(() => cb(state.orgs.get(uid) ?? null))
@@ -105,6 +111,7 @@ export function createFakeServices(seed: Seed = {}) {
     },
     admin: {
       async isAdmin(uid) {
+        if (seed.failures?.isAdmin) throw new ServiceError('network')
         return state.admins.has(uid)
       },
       watchPending(cb) {

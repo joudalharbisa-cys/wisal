@@ -67,11 +67,16 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
       },
     },
     orgs: {
-      watchOrg(uid, cb) {
+      watchOrg(uid, cb, onError) {
         return onSnapshot(
           doc(db(), 'orgs', uid),
-          s => cb(s.exists() ? toOrg(s.data(snap)) : null),
-          () => cb(null),
+          { includeMetadataChanges: true },
+          s => {
+            // An offline cache miss is not proof the org doesn't exist; wait for the server.
+            if (!s.exists() && s.metadata.fromCache) return
+            cb(s.exists() ? toOrg(s.data(snap)) : null)
+          },
+          e => onError?.(toServiceError(e)),
         )
       },
       async submitApplication(user, app, acceptedByName) {
@@ -95,11 +100,8 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
     },
     admin: {
       async isAdmin(uid) {
-        try {
-          return (await getDoc(doc(db(), 'admins', uid))).exists()
-        } catch {
-          return false
-        }
+        // Errors propagate: a failed check must not silently mean "not an admin".
+        return (await wrap(getDoc(doc(db(), 'admins', uid)))).exists()
       },
       watchPending(cb) {
         // Equality filter only (no orderBy) so no composite index is needed; sort on the client.

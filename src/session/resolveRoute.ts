@@ -6,8 +6,9 @@ export type Session =
   | { kind: 'anonymous' }
   | { kind: 'admin'; user: AuthUser }
   | { kind: 'member'; user: AuthUser; org: Org | null }
+  | { kind: 'error' }
 
-export type RouteDecision = { redirect: string } | { allow: true } | { wait: true }
+export type RouteDecision = { redirect: string } | { allow: true } | { wait: true } | { error: true }
 
 const under = (path: string, base: string) => path === base || path.startsWith(`${base}/`)
 
@@ -15,6 +16,7 @@ const under = (path: string, base: string) => path === base || path.startsWith(`
 export function resolveRoute(s: Session, path: string): RouteDecision {
   if (under(path, '/identity')) return { allow: true }
   if (s.kind === 'loading') return { wait: true }
+  if (s.kind === 'error') return { error: true }
 
   const only = (home: string, ...allowed: string[]): RouteDecision =>
     [home, ...allowed].some(p => under(path, p)) ? { allow: true } : { redirect: home }
