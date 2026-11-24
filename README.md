@@ -12,7 +12,7 @@
   - ملفات المحاكي تنحفظ في `.firebase-emulators/` داخل المشروع.
 
 ## التشغيل محليًا
-1. انسخ `.env.example` إلى `.env.local`.
+1. انسخ `.env.example` إلى `.env.development.local`. هذا الملف للتطوير فقط، ولا يدخل في نسخة الإنتاج.
 2. للعمل على المحاكي المحلي بدون حساب Firebase، استخدم هذي القيم:
    ```
    VITE_FIREBASE_API_KEY=demo-key
@@ -36,10 +36,10 @@
 
 ## النشر
 1. أنشئ مشروع Firebase على الخطة المجانية (Spark)، وفعّل Authentication (إيميل وكلمة مرور) و Firestore.
-2. حط إعدادات تطبيق الويب الحقيقية في `.env.local` بدل القيم التجريبية، وخلّ `VITE_USE_EMULATORS` فاضي.
+2. حط إعدادات تطبيق الويب الحقيقية في ملف جديد اسمه `.env.production.local`، وبدون `VITE_USE_EMULATORS`.
 3. غيّر `default` في `.firebaserc` إلى معرّف مشروعك.
 4. سجّل الدخول مرة وحدة: `npx firebase login`
-5. انشر: `npm run deploy`
+5. انشر: `npm run deploy`. قبل النشر يتحقق النظام تلقائيًا (`predeploy`) إن الإعدادات حقيقية، ويوقف النشر لو لقى إعدادات المحاكي أو مشروع `demo-`.
 
 ## ملاحظة على إصدارات Firebase
 الملف `package.json` يثبّت `@firebase/app` و `@firebase/app-compat` على الإصدارات اللي يحددها Firebase 12.19. بدون هذا التثبيت تنزل نسختين من Firebase ويتعطل Firestore. لما تحدّثون Firebase، حدّثوا هذي الإصدارات معه.

@@ -11,7 +11,7 @@ export default function ConfigError({ missing }: { missing: string[] }) {
             <li key={k}><LtrText>{k}</LtrText></li>
           ))}
         </ul>
-        <p className="mt-2 text-sm">أضفها في ملف .env.local ثم أعد تشغيل الموقع.</p>
+        <p className="mt-2 text-sm">أضفها في ملف <LtrText>.env.local</LtrText> ثم أعد تشغيل الموقع.</p>
       </Alert>
     </main>
   )

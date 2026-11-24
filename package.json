@@ -11,7 +11,8 @@
     "test": "vitest run --dir tests/unit",
     "test:rules": "cross-env FIREBASE_EMULATORS_PATH=.firebase-emulators firebase emulators:exec --only firestore --project demo-wesal \"vitest run --dir tests/rules --environment node\"",
     "emulators": "cross-env FIREBASE_EMULATORS_PATH=.firebase-emulators firebase emulators:start --project demo-wesal",
-    "deploy": "npm run build && firebase deploy --only hosting,firestore:rules"
+    "deploy": "npm run build && firebase deploy --only hosting,firestore:rules",
+    "predeploy": "node scripts/deploy-env.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-sans-arabic": "^5.3.0",

@@ -7,3 +7,8 @@ it('explains missing Firebase settings in Arabic with keys left-to-right', () =>
   expect(screen.getByRole('alert')).toHaveTextContent('إعدادات Firebase ناقصة')
   expect(screen.getByText('VITE_FIREBASE_API_KEY')).toHaveAttribute('dir', 'ltr')
 })
+
+it('shows the env file name left-to-right so it is not reordered', () => {
+  render(<ConfigError missing={['VITE_FIREBASE_API_KEY']} />)
+  expect(screen.getByText('.env.local')).toHaveAttribute('dir', 'ltr')
+})
