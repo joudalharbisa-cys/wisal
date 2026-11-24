@@ -10,10 +10,11 @@
     "preview": "vite preview",
     "test": "vitest run --dir tests/unit",
     "test:rules": "cross-env FIREBASE_EMULATORS_PATH=.firebase-emulators firebase emulators:exec --only firestore --project demo-wesal \"vitest run --dir tests/rules --environment node\"",
-    "emulators": "cross-env FIREBASE_EMULATORS_PATH=.firebase-emulators firebase emulators:start --project demo-wesal",
+    "emulators": "cross-env FIREBASE_EMULATORS_PATH=.firebase-emulators firebase emulators:start --only auth,firestore --project demo-wesal",
     "deploy": "npm run build && firebase deploy --only hosting,firestore:rules",
     "predeploy": "node scripts/deploy-env.mjs",
-    "test:integration": "cross-env FIREBASE_EMULATORS_PATH=.firebase-emulators firebase emulators:exec --only auth,firestore --project demo-wesal \"vitest run --dir tests/integration --environment node\""
+    "test:integration": "cross-env FIREBASE_EMULATORS_PATH=.firebase-emulators firebase emulators:exec --only auth,firestore --project demo-wesal \"vitest run --dir tests/integration --environment node\"",
+    "seed:emulator": "node scripts/seed-emulator.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-sans-arabic": "^5.3.0",
