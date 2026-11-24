@@ -9,5 +9,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['tests/unit/setup.ts'],
+    // UI tests type real text with user-event; under a full parallel run 5s is too tight.
+    testTimeout: 15000,
   },
 })
