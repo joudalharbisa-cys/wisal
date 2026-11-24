@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+/* Wesal identity tokens — proposal pending team approval.
+   A designer changes values here only; components use token names. */
+@theme {
+  --color-primary: #0F6B5C;
+  --color-primary-dark: #0A4D42;
+  --color-primary-light: #E3F2EF;
+  --color-accent: #C08A2B;
+  --color-accent-light: #FBF3E2;
+  --color-ink: #13201D;
+  --color-muted: #5B6B67;
+  --color-line: #E3E8E6;
+  --color-surface: #F6F8F7;
+
+  --color-hospital: #0E7490;
+  --color-charity: #4338CA;
+
+  --color-urgent: #DC2626;
+  --color-medium: #D97706;
+  --color-normal: #16A34A;
+
+  --color-status-0: #64748B;
+  --color-status-1: #B45309;
+  --color-status-2: #1D4ED8;
+  --color-status-3: #4338CA;
+  --color-status-4: #7C3AED;
+  --color-status-5: #15803D;
+
+  --font-sans: "IBM Plex Sans Arabic", Tahoma, sans-serif;
+
+  --radius-card: 16px;
+  --radius-control: 10px;
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-ink font-sans antialiased;
+  }
+}
