@@ -7,7 +7,7 @@ it('theme defines every identity color token', () => {
   expect(existsSync(path)).toBe(true)
   const css = readFileSync(path, 'utf8')
   for (const name of ['primary', 'primary-dark', 'primary-light', 'accent', 'accent-light', 'ink', 'muted', 'line', 'surface',
-    'hospital', 'charity', 'urgent', 'medium', 'normal', 'status-0', 'status-1', 'status-2', 'status-3', 'status-4', 'status-5'])
+    'hospital', 'charity', 'urgent', 'medium', 'normal', 'status-0', 'status-1', 'status-2', 'status-3', 'status-4', 'status-5', 'status-6'])
     expect(css).toContain(`--color-${name}:`)
 })
 
@@ -26,7 +26,7 @@ const contrastWithWhite = (hex: string) => 1.05 / (luminance(hex) + 0.05)
 it('every color used behind white text meets WCAG AA (4.5:1)', () => {
   const css = readFileSync(path, 'utf8')
   for (const name of ['primary', 'primary-dark', 'accent', 'hospital', 'charity', 'urgent', 'medium', 'normal',
-    'status-0', 'status-1', 'status-2', 'status-3', 'status-4', 'status-5']) {
+    'status-0', 'status-1', 'status-2', 'status-3', 'status-4', 'status-5', 'status-6']) {
     const hex = css.match(new RegExp(`--color-${name}:\\s*(#[0-9A-Fa-f]{6})`))![1]
     expect(contrastWithWhite(hex), `${name} ${hex}`).toBeGreaterThanOrEqual(4.5)
   }

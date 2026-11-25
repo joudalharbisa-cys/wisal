@@ -1,4 +1,4 @@
-import { PRIORITY_LABEL, STATUS_LABEL, type Priority, type RequestStatus } from '../../lib/labels'
+import { PRIORITY_LABEL, statusLabel, type DeliveryMode, type Priority, type RequestStatus } from '../../lib/labels'
 import { CONDITION_LABEL, type Condition } from '../../features/inventory/types'
 import type { OrgRole } from '../../features/orgs/types'
 
@@ -16,6 +16,7 @@ const STATUS_CLASS: Record<RequestStatus, [string, string]> = {
   3: ['bg-status-3/10 text-status-3 ring-status-3/20', 'bg-status-3'],
   4: ['bg-status-4/10 text-status-4 ring-status-4/20', 'bg-status-4'],
   5: ['bg-status-5/10 text-status-5 ring-status-5/20', 'bg-status-5'],
+  6: ['bg-status-6/10 text-status-6 ring-status-6/20', 'bg-status-6'],
 }
 
 const BASE = 'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset'
@@ -30,12 +31,13 @@ export function PriorityBadge({ priority }: { priority: Priority }) {
   )
 }
 
-export function StatusBadge({ status }: { status: RequestStatus }) {
-  const [c, dot] = STATUS_CLASS[status]
+export function StatusBadge({ status, open, mode }: { status: RequestStatus; open?: boolean; mode?: DeliveryMode }) {
+  // Status 0 waiting for the hospital's decision reads in the medium (orange) tone.
+  const [c, dot] = status === 0 && open === false ? ['bg-[#FFF1E6] text-medium ring-medium/30', 'bg-medium'] : STATUS_CLASS[status]
   return (
     <span data-testid="status-badge" className={`${BASE} ${c}`}>
       <span className={`size-1.5 rounded-full ${dot}`} aria-hidden />
-      {STATUS_LABEL[status]}
+      {statusLabel(status, { open, mode })}
     </span>
   )
 }

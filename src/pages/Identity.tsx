@@ -16,7 +16,7 @@ const SWATCHES: [string, string][] = [
   ['hospital', 'bg-hospital'], ['charity', 'bg-charity'],
   ['urgent', 'bg-urgent'], ['medium', 'bg-medium'], ['normal', 'bg-normal'],
   ['status-0', 'bg-status-0'], ['status-1', 'bg-status-1'], ['status-2', 'bg-status-2'],
-  ['status-3', 'bg-status-3'], ['status-4', 'bg-status-4'], ['status-5', 'bg-status-5'],
+  ['status-3', 'bg-status-3'], ['status-4', 'bg-status-4'], ['status-5', 'bg-status-5'], ['status-6', 'bg-status-6'],
 ]
 
 function Swatch({ name, cls }: { name: string; cls: string }) {
@@ -76,7 +76,7 @@ export default function Identity() {
 
       <Card title="حالات الطلب">
         <div className="flex flex-wrap gap-2">
-          {([0, 1, 2, 3, 4, 5] as const).map(s => <StatusBadge key={s} status={s} />)}
+          {([0, 1, 2, 3, 4, 5, 6] as const).map(s => <StatusBadge key={s} status={s} />)}
         </div>
       </Card>
 

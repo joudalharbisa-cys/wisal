@@ -1,19 +1,22 @@
 import { it, expect } from 'vitest'
-import { PRIORITY_LABEL, STATUS_LABEL, STATUS_SHORT } from '../../src/lib/labels'
+import { PRIORITY_LABEL, STATUS_SHORT, statusLabel } from '../../src/lib/labels'
 
 it('priority labels match the spec', () => {
   expect(PRIORITY_LABEL).toEqual({ urgent: 'عاجلة', medium: 'متوسطة', normal: 'عادية' })
 })
 
-it('status labels match the spec', () => {
-  expect(STATUS_LABEL[0]).toBe('بانتظار جهة مناسبة')
-  expect(STATUS_LABEL[1]).toBe('بانتظار موافقة الجمعية')
-  expect(STATUS_LABEL[2]).toBe('تمت الموافقة')
-  expect(STATUS_LABEL[3]).toBe('قيد التسليم')
-  expect(STATUS_LABEL[4]).toBe('تم التسليم، بانتظار التحقق')
-  expect(STATUS_LABEL[5]).toBe('تم التحقق من الوصول')
+it('status labels follow the 7 steps, by open flag and delivery mode', () => {
+  expect(statusLabel(0, { open: true })).toBe('طلب مفتوح')
+  expect(statusLabel(0, { open: false })).toBe('بانتظار قرارك')
+  expect(statusLabel(1)).toBe('بانتظار موافقة الجمعية')
+  expect(statusLabel(2)).toBe('تمت الموافقة')
+  expect(statusLabel(3)).toBe('تجهيز الطلب')
+  expect(statusLabel(4, { mode: 'delivery' })).toBe('قيد التوصيل')
+  expect(statusLabel(4, { mode: 'pickup' })).toBe('جاهز للاستلام')
+  expect(statusLabel(5)).toBe('وصل، بانتظار الرمز')
+  expect(statusLabel(6)).toBe('تم التحقق من الوصول')
 })
 
 it('short status labels follow status order', () => {
-  expect(Object.values(STATUS_SHORT)).toEqual(['بانتظار', 'مطابقة', 'موافقة', 'تسليم', 'وصول', 'تحقق'])
+  expect(Object.values(STATUS_SHORT)).toEqual(['بانتظار', 'مطابقة', 'موافقة', 'تجهيز', 'توصيل', 'وصول', 'تحقق'])
 })

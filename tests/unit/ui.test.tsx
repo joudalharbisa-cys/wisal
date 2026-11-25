@@ -26,9 +26,11 @@ it('PriorityBadge shows Arabic label', () => {
   expect(screen.getByText('عاجلة')).toBeInTheDocument()
 })
 
-it('StatusBadge renders all six statuses', () => {
-  ;([0, 1, 2, 3, 4, 5] as const).forEach(s => render(<StatusBadge status={s} />))
-  expect(screen.getAllByTestId('status-badge')).toHaveLength(6)
+it('StatusBadge renders all seven statuses, with pickup wording when asked', () => {
+  ;([0, 1, 2, 3, 4, 5, 6] as const).forEach(s => render(<StatusBadge status={s} />))
+  expect(screen.getAllByTestId('status-badge')).toHaveLength(7)
+  render(<StatusBadge status={4} mode="pickup" />)
+  expect(screen.getByText('جاهز للاستلام')).toBeInTheDocument()
   expect(screen.getByText('تم التحقق من الوصول')).toBeInTheDocument()
 })
 

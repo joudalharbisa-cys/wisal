@@ -126,8 +126,8 @@ export default function RequestDetails() {
           <section className={`${CARD} p-6`}>
             <div className="flex items-center justify-between"><h2 className="font-bold">حالة الطلب</h2><RequestStatusBadge status={r.status} open={r.open} /></div>
             {r.status === 0 && r.open && <p className="mt-2 text-sm text-muted">طلب مفتوح، أي جمعية عندها الكمية تقدر تقبله.</p>}
-            <ol className="mt-6 grid grid-cols-6 gap-1">
-              {([0, 1, 2, 3, 4, 5] as RequestStatus[]).map(i => (
+            <ol className="mt-6 grid grid-cols-7 gap-1">
+              {([0, 1, 2, 3, 4, 5, 6] as RequestStatus[]).map(i => (
                 <li key={i} className="text-center" aria-current={i === r.status ? 'step' : undefined}>
                   <span className={`block h-1.5 rounded-full ${i <= r.status ? 'bg-primary' : 'bg-line'}`} />
                   <span className={`mt-2 block text-[11px] ${i === r.status ? 'font-bold text-primary' : 'text-muted'}`}>{STATUS_SHORT[i]}</span>
