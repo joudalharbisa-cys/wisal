@@ -93,12 +93,11 @@ Helpers: `isApprovedMember()` = signed in and `orgs/{auth.uid}.status == 'approv
 - `items/{key}`: read if approved member or admin. Create if approved member, `key == doc id`, name 2–60, `createdBy == auth.uid`, `createdAt == request.time`, keys exactly these four. No update, no delete.
 - `orgs/{uid}/warehouses/{whId}`: read if approved member or admin. Create/update/delete only by owner `uid == auth.uid` who is an approved member. Field validation as in the model; keys `hasOnly`; `createdAt` set once, `updatedAt == request.time`.
 - `orgs/{uid}/stock/{stockId}`: read if approved member or admin (single doc and collection-group: `match /{path=**}/stock/{id}`). Write only by owner who is approved, and:
-  - `stockId == warehouseId + '__' + itemId + '__' + condition`;
-  - `existsAfter` the warehouse and the item;
-  - `orgName == org.name`, `orgRole == org.role`, `warehouseName`/`city == getAfter(warehouse)`, `itemName == getAfter(item).name`;
-  - create: `reserved == 0`; update: `reserved` unchanged, only `qty`, `updatedAt`, `warehouseName`, `city` may change; `qty >= reserved`;
-  - delete: owner, only when `reserved == 0`.
+  - **create:** `orgId == uid`; `stockId == warehouseId + '__' + itemId + '__' + condition`; `itemId` matches `^[^/_]+(_[^/_]+)*$`-style key format (no `/`, no `__`); `existsAfter` the warehouse and the item; `orgName == org.name`, `orgRole == org.role`, `warehouseName`/`city == getAfter(warehouse)`, `itemName == getAfter(item).name`; `reserved == 0`; `qty` int 0–99999.
+  - **update:** only `qty`, `updatedAt`, `warehouseName`, `city` may change (`itemId`, `itemName`, `condition`, `org*`, `reserved` unchanged — so **no item read on update**); `warehouseName`/`city == getAfter(warehouse)`; `qty >= reserved`. Access calls per batch stay at org + warehouse (+ own-org approval), so a rename batch of any size stays within the 20-call batch limit.
+  - **delete:** owner, approved, `resource.data.reserved == 0`. **No `existsAfter` checks**, so it works in the same batch as a warehouse delete.
 - Renaming/moving a warehouse updates its stock rows' `warehouseName`/`city` in the same batch. Deleting a warehouse deletes its stock rows in the same batch (fails if any row has `reserved > 0` — not reachable in phase 2).
+- **Accepted limits (builder's call, see below):** rules can't query, so they can't force a warehouse delete to take its stock with it, and they don't re-run `normalizeName` (they check the key format and `key == doc id`). Only an approved org bypassing the app could leave orphan rows of its own or add an oddly-keyed product; acceptable for the pilot.
 
 Option C lives entirely in the read conditions above; switching to A or B later is a rules + page change only.
 
@@ -144,6 +143,13 @@ Fake implementation mirrors the rules, as in phase 1.
 - Arabic UI copy, casual-polite tone as in phase 1; Western digits.
 - TDD; rules tests on the emulator; one integration test of the real services.
 - Collection-group query on `stock` needs no composite index (no filters/orderBy beyond what single-field indexes cover); phase 4 will add `firestore.indexes.json` if it filters by `itemId`.
+
+## Calls made after the builder check
+
+- **Rules don't duplicate `normalizeName`.** The app normalises; rules check key format + `key == doc id`. Reason: a full Arabic normaliser in rules would need its own exact-match test suite for little gain in a pilot of approved orgs. Cost if wrong: a misbehaving client could add a near-duplicate product; fixable later by admin tooling.
+- **Warehouse locations are readable by all approved orgs.** Reason: phase 4 ranking runs in the hospital's browser and needs charity warehouse coordinates to compute distance; it also fits option C. Cost if wrong: switching to owner/admin-only read is a one-line rule change, but phase 4 would then need denormalised coarse locations.
+- **`qty == 0` rows:** kept and shown as «نفد» on مخزوني; hidden on مخزون الجهات (and phase 4 filters by available > 0 anyway).
+- **Orphan stock after a client-side warehouse delete:** accepted (see rules section).
 
 ## Left to the builder
 
