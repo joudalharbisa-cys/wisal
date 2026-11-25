@@ -74,3 +74,10 @@
 - Data: `items/{key}`, `orgs/{uid}/warehouses/{id}`, `orgs/{uid}/stock/{warehouseId__itemKey__condition}`. Rules: `firestore.rules`; tests: `npm run test:rules`.
 - The map uses Leaflet + OpenStreetMap tiles (free, no key).
 - Local demo: `npm run emulators` then `npm run seed:emulator` creates `hospital@wesal.test` and `charity@wesal.test` (password `wesal-test-123`) with sample stock.
+## Phase 3+4 — Hospital requests and ranking (طلب المستشفى والترتيب)
+
+- Hospitals land on «طلباتي» (`/app`); «مخزوني» moved to `/app/stock`. Charities still land on «مخزوني».
+- «طلب جديد» (`/app/requests/new`): one product per request, accepted condition (new only / new or used), priority, beneficiaries, deadline, receiver, and a delivery pin (district/city filled from the pin via OpenStreetMap Nominatim, ≤ 1 call/s).
+- Charities that can cover the quantity from one warehouse are ranked with the prototype formula (`src/features/requests/rank.ts`); the hospital picks one and sends, or publishes an open request. Every request gets a 4-digit receipt code only the hospital can read (`requestSecrets`).
+- Data: `requests/{id}`, `requestSecrets/{id}`. The ranking query needs the collection-group indexes in `firestore.indexes.json` (deployed by `npm run deploy`).
+- Local demo: `npm run seed:emulator` adds جمعية الشمال (north@wesal.test) and جمعية الشرق (east@wesal.test); a 40-chair urgent request from hospital@wesal.test ranks الشمال 90، البر 89، الشرق 84.

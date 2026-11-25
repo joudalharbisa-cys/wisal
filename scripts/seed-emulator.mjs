@@ -48,11 +48,18 @@ await put(`admins/${adminUid}`, { name: 'مدير وصال (تجريبي)' })
 
 const orgs = [
   { email: 'hospital@wesal.test', org: { role: 'hospital', name: 'مستشفى الملك فهد', city: 'جدة', district: 'الشرفية', licenseNo: 'MOH-10001', hospitalType: 'gov' },
-    wh: { name: 'مخزن المستشفى', city: 'جدة', district: 'الشرفية', location: { lat: 21.5292, lng: 39.1989 } },
+    wh: { name: 'مخزن المستشفى', city: 'جدة', district: 'الشرفية', location: { lat: 21.5433, lng: 39.1728 } },
     stock: [['كراسي متحركة', 'used', 6], ['أجهزة قياس ضغط', 'new', 14]] },
   { email: 'charity@wesal.test', org: { role: 'charity', name: 'جمعية البر بجدة', city: 'جدة', district: 'النعيم', licenseNo: '4521', workingHours: 'الأحد إلى الخميس، 8 ص إلى 4 م', canDeliver: true },
-    wh: { name: 'المستودع الرئيسي', city: 'جدة', district: 'النعيم', location: { lat: 21.6215, lng: 39.1465 } },
-    stock: [['كراسي متحركة', 'new', 40], ['كراسي متحركة', 'used', 12], ['أسرّة طبية', 'new', 8]] },
+    wh: { name: 'المستودع الرئيسي', city: 'جدة', district: 'النعيم', location: { lat: 21.572, lng: 39.17 } },
+    stock: [['كراسي متحركة', 'new', 50], ['كراسي متحركة', 'used', 12], ['أسرّة طبية', 'new', 8]] },
+  // Prototype reference charities (phase 3 ranking: الشمال 90، البر 89، الشرق 84 for 40 chairs, urgent, from the hospital).
+  { email: 'north@wesal.test', org: { role: 'charity', name: 'جمعية الشمال', city: 'جدة', district: 'الروضة', licenseNo: '4522', workingHours: 'الأحد إلى الخميس، 8 ص إلى 4 م', canDeliver: false },
+    wh: { name: 'مستودع الروضة', city: 'جدة', district: 'الروضة', location: { lat: 21.596, lng: 39.155 } },
+    stock: [['كراسي متحركة', 'new', 60]] },
+  { email: 'east@wesal.test', org: { role: 'charity', name: 'جمعية الشرق', city: 'جدة', district: 'الصفا', licenseNo: '4523', workingHours: 'يوميًا، 9 ص إلى 9 م', canDeliver: true },
+    wh: { name: 'مستودع الصفا', city: 'جدة', district: 'الصفا', location: { lat: 21.55, lng: 39.235 } },
+    stock: [['كراسي متحركة', 'new', 45]] },
 ]
 
 for (const o of orgs) {
