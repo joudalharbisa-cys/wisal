@@ -55,7 +55,7 @@ describe('new request', () => {
   it('charity is sent away from the request form', async () => {
     const s = createFakeServices({ users: [{ uid: 'c1', email: 'c@t.sa', password: 'x' }], orgs: ORGS, signedIn: 'c1' })
     render(<ServicesProvider services={s}><MemoryRouter initialEntries={['/app/requests/new']}><App /></MemoryRouter></ServicesProvider>)
-    expect(await screen.findByRole('heading', { name: 'مخزوني' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'الطلبات الواردة' })).toBeInTheDocument()
   })
 
   it('prefills the place from the hospital warehouse', async () => {
