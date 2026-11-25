@@ -5,7 +5,7 @@ import type { OrgRole } from '../../features/orgs/types'
 // Literal class strings so Tailwind generates them. Soft tint + colored text + dot.
 const PRIORITY_CLASS: Record<Priority, [string, string]> = {
   urgent: ['bg-urgent/10 text-urgent ring-urgent/20', 'bg-urgent'],
-  medium: ['bg-medium/10 text-medium ring-medium/20', 'bg-medium'],
+  medium: ['bg-medium/15 text-medium ring-medium/30', 'bg-medium'],
   normal: ['bg-normal/10 text-normal ring-normal/20', 'bg-normal'],
 }
 
