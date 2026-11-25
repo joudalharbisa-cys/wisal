@@ -65,3 +65,12 @@
 
 ## ملاحظة على إصدارات Firebase
 الملف `package.json` يثبّت `@firebase/app` و `@firebase/app-compat` على الإصدارات اللي يحددها Firebase 12.19. بدون هذا التثبيت تنزل نسختين من Firebase ويتعطل Firestore. لما تحدّثون Firebase، حدّثوا هذي الإصدارات معه.
+
+## Phase 2 — Inventory (المخزون)
+
+- Approved orgs manage **warehouses** (name, city, district, map pin) and the **stock** inside them: `/app` («مخزوني»), `/app/warehouses/new`, `/app/warehouses/:id`.
+- Products come from a **shared list that grows** (`items`); the four prototype products are offered from the start. A name close to an existing one asks «تقصد …؟» first.
+- Every approved org (and the admin, at `/admin/network`) sees all approved orgs' available stock at `/app/network` («مخزون الجهات»).
+- Data: `items/{key}`, `orgs/{uid}/warehouses/{id}`, `orgs/{uid}/stock/{warehouseId__itemKey__condition}`. Rules: `firestore.rules`; tests: `npm run test:rules`.
+- The map uses Leaflet + OpenStreetMap tiles (free, no key).
+- Local demo: `npm run emulators` then `npm run seed:emulator` creates `hospital@wesal.test` and `charity@wesal.test` (password `wesal-test-123`) with sample stock.
