@@ -22,7 +22,7 @@ import { toServiceError } from '../features/auth/errors'
 import { CONTRACT } from '../features/orgs/contract'
 import type { Org } from '../features/orgs/types'
 import { getAuthClient, getDb } from '../lib/firebase'
-import { applicationFields, type Services } from './types'
+import { applicationFields, ServiceError, type Services } from './types'
 
 const toDate = (v: unknown) => (v && typeof (v as { toDate?: unknown }).toDate === 'function' ? (v as { toDate: () => Date }).toDate() : (v as Date))
 
@@ -135,5 +135,19 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
         )
       },
     },
+    inventory: {
+      watchItems: notYet,
+      watchWarehouses: notYet,
+      watchStock: notYet,
+      watchAllStock: notYet,
+      saveWarehouse: notYet,
+      deleteWarehouse: notYet,
+      setStock: notYet,
+      deleteStock: notYet,
+    },
   }
+}
+
+function notYet(): never {
+  throw new ServiceError('unknown', 'inventory not implemented yet')
 }

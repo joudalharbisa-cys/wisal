@@ -1,14 +1,20 @@
 import { CONTRACT } from '../features/orgs/contract'
 import type { Org, OrgWithId } from '../features/orgs/types'
-import { applicationFields, ServiceError, type AuthUser, type Services } from './types'
+import { isValidItemKey, normalizeName, stockId } from '../features/inventory/names'
+import { MAX_QTY, type Item, type StockRow, type Warehouse } from '../features/inventory/types'
+import { inSaudiBox, validateItemName } from '../features/inventory/validate'
+import { applicationFields, resolveItem, ServiceError, type AuthUser, type Services } from './types'
 
 type Seed = {
   users?: { uid: string; email: string; password: string }[]
   orgs?: Record<string, Org>
   admins?: string[]
   signedIn?: string
+  items?: Item[]
+  warehouses?: Record<string, Warehouse[]>
+  stock?: StockRow[]
   /** Simulate backend failures in tests. */
-  failures?: { isAdmin?: boolean; watchOrg?: boolean }
+  failures?: { isAdmin?: boolean; watchOrg?: boolean; allStock?: boolean; save?: boolean }
 }
 
 /** In-memory backend with the same transitions the security rules allow. Used by UI tests and local demos. */
@@ -19,6 +25,10 @@ export function createFakeServices(seed: Seed = {}) {
     admins: new Set(seed.admins ?? []),
     current: null as AuthUser | null,
     clock: 0,
+    items: new Map<string, Item>((seed.items ?? []).map(i => [i.key, i])),
+    warehouses: new Map<string, Warehouse[]>(Object.entries(seed.warehouses ?? {})),
+    stock: new Map<string, StockRow>((seed.stock ?? []).map(r => [`${r.orgId}/${r.id}`, r])),
+    nextId: 0,
   }
   if (seed.signedIn) {
     const u = state.users.find(x => x.uid === seed.signedIn)
@@ -49,6 +59,20 @@ export function createFakeServices(seed: Seed = {}) {
     const o = mustOrg(uid)
     if (o.status !== 'pending') throw new ServiceError('invalid-transition', 'only pending can be reviewed')
     return o
+  }
+
+  // Inventory watchers: re-run every listener after any inventory change.
+  const invCbs = new Set<() => void>()
+  const emitInv = () => invCbs.forEach(f => f())
+  const listen = (f: () => void) => {
+    invCbs.add(f)
+    queueMicrotask(f)
+    return () => { invCbs.delete(f) }
+  }
+  const rowsOf = (uid: string) => [...state.stock.values()].filter(r => r.orgId === uid)
+  const mustApproved = (uid: string) => {
+    if (state.orgs.get(uid)?.status !== 'approved') throw new ServiceError('invalid-transition', 'org not approved')
+    if (seed.failures?.save) throw new ServiceError('network')
   }
 
   const services: Services = {
@@ -131,6 +155,80 @@ export function createFakeServices(seed: Seed = {}) {
         const t = now()
         state.orgs.set(orgId, { ...o, status: 'rejected', rejectReason: reason.trim(), reviewedBy: adminUid, reviewedAt: t, updatedAt: t })
         emitOrg(orgId)
+      },
+    },
+    inventory: {
+      watchItems(cb) {
+        return listen(() => cb([...state.items.values()]))
+      },
+      watchWarehouses(uid, cb) {
+        return listen(() => cb([...(state.warehouses.get(uid) ?? [])].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())))
+      },
+      watchStock(uid, cb) {
+        return listen(() => cb(rowsOf(uid)))
+      },
+      watchAllStock(cb, onError) {
+        if (seed.failures?.allStock) {
+          queueMicrotask(() => onError?.(new ServiceError('network')))
+          return () => {}
+        }
+        return listen(() => cb([...state.stock.values()].filter(r => state.orgs.get(r.orgId)?.status === 'approved')))
+      },
+      async saveWarehouse(owner, id, draft) {
+        mustApproved(owner.uid)
+        if (!inSaudiBox(draft.location)) throw new ServiceError('invalid-transition', 'outside Saudi box')
+        const list = state.warehouses.get(owner.uid) ?? []
+        const t = now()
+        const fields = { name: draft.name.trim(), city: draft.city, district: draft.district.trim(), location: { ...draft.location } }
+        let wid = id
+        if (wid) {
+          const i = list.findIndex(w => w.id === wid)
+          if (i < 0) throw new ServiceError('invalid-transition', 'no warehouse')
+          list[i] = { ...list[i], ...fields, updatedAt: t }
+          for (const r of rowsOf(owner.uid))
+            if (r.warehouseId === wid) state.stock.set(`${owner.uid}/${r.id}`, { ...r, warehouseName: fields.name, city: fields.city, updatedAt: t })
+        } else {
+          wid = `w${++state.nextId}`
+          list.push({ id: wid, ...fields, createdAt: t, updatedAt: t })
+        }
+        state.warehouses.set(owner.uid, list)
+        emitInv()
+        return wid
+      },
+      async deleteWarehouse(uid, id) {
+        mustApproved(uid)
+        const rows = rowsOf(uid).filter(r => r.warehouseId === id)
+        if (rows.some(r => r.reserved > 0)) throw new ServiceError('invalid-transition', 'reserved stock')
+        rows.forEach(r => state.stock.delete(`${uid}/${r.id}`))
+        state.warehouses.set(uid, (state.warehouses.get(uid) ?? []).filter(w => w.id !== id))
+        emitInv()
+      },
+      async setStock(owner, warehouse, choice, condition, qty) {
+        mustApproved(owner.uid)
+        if (!Number.isInteger(qty) || qty < 0 || qty > MAX_QTY) throw new ServiceError('invalid-transition', 'bad qty')
+        if (!(state.warehouses.get(owner.uid) ?? []).some(w => w.id === warehouse.id)) throw new ServiceError('invalid-transition', 'no warehouse')
+        const wanted = resolveItem(choice, normalizeName)
+        if (!isValidItemKey(wanted.key) || validateItemName(wanted.name)) throw new ServiceError('invalid-transition', 'bad product')
+        const item = state.items.get(wanted.key) ?? wanted
+        state.items.set(item.key, item)
+        const id = stockId(warehouse.id, item.key, condition)
+        const k = `${owner.uid}/${id}`
+        const t = now()
+        const existing = state.stock.get(k)
+        if (existing && qty < existing.reserved) throw new ServiceError('invalid-transition', 'below reserved')
+        state.stock.set(k, existing ? { ...existing, qty, updatedAt: t } : {
+          id, orgId: owner.uid, orgName: owner.name, orgRole: owner.role,
+          warehouseId: warehouse.id, warehouseName: warehouse.name, city: warehouse.city,
+          itemId: item.key, itemName: item.name, condition, qty, reserved: 0, updatedAt: t,
+        })
+        emitInv()
+      },
+      async deleteStock(uid, id) {
+        mustApproved(uid)
+        const r = state.stock.get(`${uid}/${id}`)
+        if (r && r.reserved > 0) throw new ServiceError('invalid-transition', 'reserved stock')
+        state.stock.delete(`${uid}/${id}`)
+        emitInv()
       },
     },
   }

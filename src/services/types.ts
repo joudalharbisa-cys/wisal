@@ -1,4 +1,5 @@
 import type { Org, OrgApplication, OrgWithId } from '../features/orgs/types'
+import type { Condition, Item, ItemChoice, LatLng, OrgRef, StockRow, Warehouse, WarehouseDraft } from '../features/inventory/types'
 
 export type AuthUser = { uid: string; email: string }
 
@@ -35,6 +36,27 @@ export interface Services {
     approve(orgId: string, adminUid: string): Promise<void>
     reject(orgId: string, adminUid: string, reason: string): Promise<void>
   }
+  inventory: {
+    /** Products stored in the database (the UI merges SEED_ITEMS). */
+    watchItems(cb: (items: Item[]) => void): Unsubscribe
+    /** Oldest first. */
+    watchWarehouses(uid: string, cb: (w: Warehouse[]) => void): Unsubscribe
+    watchStock(uid: string, cb: (rows: StockRow[]) => void): Unsubscribe
+    /** Every approved org's rows (collection group). */
+    watchAllStock(cb: (rows: StockRow[]) => void, onError?: (e: ServiceError) => void): Unsubscribe
+    /** Create (id null) or update; an update also refreshes the warehouse name/city copied onto its rows. Returns the id. */
+    saveWarehouse(owner: OrgRef, id: string | null, draft: WarehouseDraft & { location: LatLng }): Promise<string>
+    /** Removes the warehouse and its rows together. */
+    deleteWarehouse(uid: string, id: string): Promise<void>
+    /** Creates the product if needed; an existing row for the same product + condition gets the new qty. */
+    setStock(owner: OrgRef, warehouse: Warehouse, choice: ItemChoice, condition: Condition, qty: number): Promise<void>
+    deleteStock(uid: string, stockId: string): Promise<void>
+  }
+}
+
+/** The product a choice refers to: existing as-is, or a new one keyed by its normalised name. */
+export function resolveItem(choice: ItemChoice, normalize: (s: string) => string): Item {
+  return choice.kind === 'existing' ? choice.item : { key: normalize(choice.name), name: choice.name.trim() }
 }
 
 /** Only the fields that belong to the org's role, without undefined values (Firestore rejects undefined). */
