@@ -13,6 +13,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   onSnapshot,
   query,
   runTransaction,
@@ -31,6 +32,7 @@ import { validateItemName } from '../features/inventory/validate'
 import { makeReceiptCode } from '../features/requests/code'
 import { planReservation } from '../features/requests/reserve'
 import type { HospitalRequest } from '../features/requests/types'
+import { toWesternDigits } from '../features/requests/validate'
 import { toServiceError } from '../features/auth/errors'
 import { CONTRACT } from '../features/orgs/contract'
 import type { Org } from '../features/orgs/types'
@@ -310,6 +312,56 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
       },
       async chooseAgain(_hospital, id, choice) {
         await wrap(updateDoc(doc(db(), 'requests', id), { status: 1, open: false, ...choice, sentAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+      },
+      async startPreparing(_charity, id, canDeliver) {
+        await wrap(updateDoc(doc(db(), 'requests', id), { status: 3, mode: canDeliver ? 'delivery' : 'pickup', preparingAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+      },
+      async dispatch(_charity, id, driver) {
+        await wrap(updateDoc(doc(db(), 'requests', id), {
+          status: 4, outAt: serverTimestamp(), updatedAt: serverTimestamp(),
+          ...(driver ? { driver: { name: driver.name.trim(), phone: driver.phone, eta: Timestamp.fromDate(driver.eta) } } : {}),
+        }))
+      },
+      async markArrived(_charity, id) {
+        await wrap(updateDoc(doc(db(), 'requests', id), { status: 5, arrivedAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+      },
+      async submitCode(charity, id, code) {
+        const ref = doc(db(), 'requests', id)
+        let r: HospitalRequest
+        try { r = toRequest(id, (await getDoc(ref)).data() ?? {}) } catch (e) { throw isDenied(e) ? new ServiceError('invalid-transition', 'taken') : new ServiceError('network') }
+        const fails = r.codeFails ?? 0
+        if (fails >= 5) return { result: 'locked', remaining: 0 }
+        // 1) Store and count the attempt. 2) Close only if the stored attempt matches (the rules compare it with the secret).
+        try {
+          await updateDoc(ref, { codeAttempt: toWesternDigits(code).trim(), codeFails: fails + 1, updatedAt: serverTimestamp() })
+        } catch (e) {
+          if (isDenied(e)) return { result: 'locked', remaining: 0 }
+          throw new ServiceError('network')
+        }
+        const remaining = 5 - (fails + 1)
+        const batch = writeBatch(db())
+        batch.update(ref, { status: 6, verifiedAt: serverTimestamp(), updatedAt: serverTimestamp() })
+        for (const [sid, n] of Object.entries(r.reservation ?? {}))
+          batch.update(doc(db(), 'orgs', charity.uid, 'stock', sid), { qty: increment(-n), reserved: increment(-n), updatedAt: serverTimestamp() })
+        try {
+          await batch.commit()
+          return { result: 'ok', remaining }
+        } catch (e) {
+          if (isDenied(e)) return { result: 'wrong', remaining }
+          throw new ServiceError('network')
+        }
+      },
+      async setPickup(_hospital, id, courier) {
+        await wrap(updateDoc(doc(db(), 'requests', id), { pickup: { name: courier.name.trim(), phone: courier.phone, eta: Timestamp.fromDate(courier.eta) }, updatedAt: serverTimestamp() }))
+      },
+      async unlockCode(_hospital, id) {
+        await wrap(updateDoc(doc(db(), 'requests', id), { codeFails: 0, updatedAt: serverTimestamp() }))
+      },
+      async setMeeting(by, id, meeting) {
+        await wrap(updateDoc(doc(db(), 'requests', id), {
+          meeting: meeting ? { at: Timestamp.fromDate(meeting.at), link: meeting.link.trim(), byRole: by.role, byName: by.name } : deleteField(),
+          updatedAt: serverTimestamp(),
+        }))
       },
       async publishOpen(_hospital, id) {
         await wrap(updateDoc(doc(db(), 'requests', id), { open: true, publishedAt: serverTimestamp(), updatedAt: serverTimestamp() }))

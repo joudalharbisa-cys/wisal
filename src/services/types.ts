@@ -1,6 +1,6 @@
 import type { Org, OrgApplication, OrgWithId } from '../features/orgs/types'
 import type { Condition, Item, ItemChoice, LatLng, OrgRef, StockRow, Warehouse, WarehouseDraft } from '../features/inventory/types'
-import type { Candidates, CharityChoice, Contact, HospitalRequest, ValidRequest } from '../features/requests/types'
+import type { Candidates, CharityChoice, Contact, HospitalRequest, Person, ValidRequest } from '../features/requests/types'
 
 export type AuthUser = { uid: string; email: string }
 
@@ -74,6 +74,17 @@ export interface Services {
     reject(charity: OrgRef, id: string, reason: string): Promise<void>
     chooseAgain(hospital: OrgRef, id: string, choice: CharityChoice): Promise<void>
     publishOpen(hospital: OrgRef, id: string): Promise<void>
+    /** 2 → 3; the mode (delivery / pickup) follows the charity's «تقدر توصّل». */
+    startPreparing(charity: OrgRef, id: string, canDeliver: boolean): Promise<void>
+    /** 3 → 4: out for delivery with its driver, or (pickup) ready with no driver. */
+    dispatch(charity: OrgRef, id: string, driver: Person | null): Promise<void>
+    markArrived(charity: OrgRef, id: string): Promise<void>
+    /** Counted attempt, then verify (+ stock deduction). Throws ServiceError('network') when the outcome is unknown. */
+    submitCode(charity: OrgRef, id: string, code: string): Promise<{ result: 'ok' | 'wrong' | 'locked'; remaining: number }>
+    setPickup(hospital: OrgRef, id: string, courier: Person): Promise<void>
+    unlockCode(hospital: OrgRef, id: string): Promise<void>
+    /** Either side; null removes it. */
+    setMeeting(by: OrgRef, id: string, meeting: { at: Date; link: string } | null): Promise<void>
   }
 }
 

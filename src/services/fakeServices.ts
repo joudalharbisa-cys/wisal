@@ -5,6 +5,7 @@ import { MAX_QTY, type Item, type StockRow, type Warehouse } from '../features/i
 import { inSaudiBox, validateItemName } from '../features/inventory/validate'
 import { makeReceiptCode } from '../features/requests/code'
 import { planReservation } from '../features/requests/reserve'
+import { parsePhone, toWesternDigits } from '../features/requests/validate'
 import type { Contact, HospitalRequest } from '../features/requests/types'
 import { applicationFields, resolveItem, ServiceError, type AuthUser, type Services } from './types'
 
@@ -115,6 +116,7 @@ export function createFakeServices(seed: Seed = {}) {
     if (state.current?.uid !== h.uid || !r || r.hospitalId !== h.uid) throw new ServiceError('invalid-transition', 'not your request')
     return r
   }
+  const validPerson = (p: { name: string; phone: string; eta: Date }) => p.name.trim().length >= 2 && p.name.trim().length <= 60 && parsePhone(p.phone) === p.phone && p.eta instanceof Date
   const rowsOf = (uid: string) => [...state.stock.values()].filter(r => r.orgId === uid)
   const mustApproved = (uid: string) => {
     if (state.orgs.get(uid)?.status !== 'approved') throw new ServiceError('invalid-transition', 'org not approved')
@@ -321,6 +323,74 @@ export function createFakeServices(seed: Seed = {}) {
         if (r.status !== 0 || c?.role !== 'charity' || c.status !== 'approved' || c.name !== choice.charityName) throw new ServiceError('invalid-transition', 'cannot choose')
         const t = now()
         state.requests.set(id, { ...r, ...choice, status: 1, open: false, sentAt: t, updatedAt: t })
+        emitInv()
+      },
+      async startPreparing(charity, id, canDeliver) {
+        actingCharity(charity)
+        const r = state.requests.get(id)
+        if (!r || r.status !== 2 || r.charityId !== charity.uid) throw new ServiceError('invalid-transition', 'not ready')
+        const t = now()
+        state.requests.set(id, { ...r, status: 3, mode: canDeliver ? 'delivery' : 'pickup', preparingAt: t, updatedAt: t })
+        emitInv()
+      },
+      async dispatch(charity, id, driver) {
+        actingCharity(charity)
+        const r = state.requests.get(id)
+        if (!r || r.status !== 3 || r.charityId !== charity.uid) throw new ServiceError('invalid-transition', 'not preparing')
+        if ((r.mode === 'delivery') !== !!driver || (driver && !validPerson(driver))) throw new ServiceError('invalid-transition', 'driver')
+        const t = now()
+        state.requests.set(id, { ...r, status: 4, outAt: t, ...(driver ? { driver: { ...driver } } : {}), updatedAt: t })
+        emitInv()
+      },
+      async markArrived(charity, id) {
+        actingCharity(charity)
+        const r = state.requests.get(id)
+        if (!r || r.status !== 4 || r.charityId !== charity.uid) throw new ServiceError('invalid-transition', 'not out')
+        const t = now()
+        state.requests.set(id, { ...r, status: 5, arrivedAt: t, updatedAt: t })
+        emitInv()
+      },
+      async submitCode(charity, id, code) {
+        actingCharity(charity)
+        const r = state.requests.get(id)
+        if (!r || r.status !== 5 || r.charityId !== charity.uid) throw new ServiceError('invalid-transition', 'not arrived')
+        const fails = r.codeFails ?? 0
+        if (fails >= 5) return { result: 'locked' as const, remaining: 0 }
+        const attempt = toWesternDigits(code).trim()
+        const counted = { ...r, codeFails: fails + 1, updatedAt: now() }
+        state.requests.set(id, counted)
+        if (attempt !== state.codes.get(id)) { emitInv(); return { result: 'wrong' as const, remaining: 5 - counted.codeFails } }
+        const t = now()
+        for (const [sid, n] of Object.entries(r.reservation ?? {})) {
+          const k = `${charity.uid}/${sid}`
+          const row = state.stock.get(k)!
+          state.stock.set(k, { ...row, qty: row.qty - n, reserved: row.reserved - n, updatedAt: t })
+        }
+        state.requests.set(id, { ...counted, status: 6, verifiedAt: t, updatedAt: t })
+        emitInv()
+        return { result: 'ok' as const, remaining: 5 - counted.codeFails }
+      },
+      async setPickup(hospital, id, courier) {
+        const r = actingHospital(hospital, id)
+        if (r.mode !== 'pickup' || r.status < 3 || r.status > 4 || !validPerson(courier)) throw new ServiceError('invalid-transition', 'pickup')
+        state.requests.set(id, { ...r, pickup: { ...courier }, updatedAt: now() })
+        emitInv()
+      },
+      async unlockCode(hospital, id) {
+        const r = actingHospital(hospital, id)
+        if (r.status !== 5 || (r.codeFails ?? 0) < 5) throw new ServiceError('invalid-transition', 'not locked')
+        state.requests.set(id, { ...r, codeFails: 0, updatedAt: now() })
+        emitInv()
+      },
+      async setMeeting(by, id, meeting) {
+        const r = state.requests.get(id)
+        const me = state.current?.uid
+        const allowed = !!r && me === by.uid && (r.hospitalId === me || r.charityId === me) && r.status >= 2 && r.status <= 5
+        if (!allowed || (meeting && !/^https:\/\/.+/.test(meeting.link))) throw new ServiceError('invalid-transition', 'meeting')
+        const next: HospitalRequest = { ...r!, updatedAt: now() }
+        if (meeting) next.meeting = { at: meeting.at, link: meeting.link.trim(), byRole: by.role, byName: by.name }
+        else delete next.meeting
+        state.requests.set(id, next)
         emitInv()
       },
       async publishOpen(hospital, id) {
