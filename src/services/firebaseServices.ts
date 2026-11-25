@@ -301,7 +301,7 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
           const r = toRequest(s.id, s.data())
           if (r.status !== 1 || r.charityId !== charity.uid) throw new ServiceError('invalid-transition', 'taken')
           tx.update(reqRef, {
-            status: 0, charityId: deleteField(), charityName: deleteField(), warehouseId: deleteField(),
+            status: 0, open: false, charityId: deleteField(), charityName: deleteField(), warehouseId: deleteField(),
             excluded: [...r.excluded, charity.uid],
             lastRejection: { charityName: r.charityName ?? '', reason: reason.trim(), at: serverTimestamp() },
             updatedAt: serverTimestamp(),
@@ -359,7 +359,10 @@ const isDenied = (e: unknown) => (e as { code?: string }).code === 'permission-d
 
 function toRequest(id: string, d: DocumentData): HospitalRequest {
   return {
-    ...(d as Omit<HospitalRequest, 'id'>), id, open: !!d.open, excluded: (d.excluded as string[]) ?? [],
+    ...(d as Omit<HospitalRequest, 'id'>), id, excluded: (d.excluded as string[]) ?? [],
+    // Before phase 5 there was no `open`: a status-0 request was open.
+    open: typeof d.open === 'boolean' ? d.open : d.status === 0,
+    legacyReceiver: d.receiver ? { name: d.receiver.name, phone: d.receiver.phone } : undefined,
     neededBy: toDate(d.neededBy), createdAt: toDate(d.createdAt), updatedAt: toDate(d.updatedAt),
     acceptedAt: d.acceptedAt ? toDate(d.acceptedAt) : undefined,
     lastRejection: d.lastRejection ? { ...d.lastRejection, at: toDate(d.lastRejection.at) } : undefined,

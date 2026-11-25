@@ -153,6 +153,23 @@ describe('hospital after a rejection', () => {
   })
 })
 
+describe('requests created before phase 5', () => {
+  const legacy = (over: Record<string, unknown>) => {
+    const d: Record<string, unknown> = { ...over, receiver: { name: 'أحمد', phone: '0551234567' } }
+    delete d.open
+    return d
+  }
+  it('addressed charity can reject an old sent request', async () => {
+    await seed('requests/r1', legacy(sent()))
+    await assertSucceeds(r('c1').update(reject({ open: false })))
+  })
+  it('an old open request can be read and taken by any charity', async () => {
+    await seed('requests/r1', legacy(openReq()))
+    await assertSucceeds(r('c2').get())
+    await assertSucceeds(r('c2').update(take('c2', 'جمعية الشمال', 'w2')))
+  })
+})
+
 describe('stock reservation and contact', () => {
   const row = { orgId: 'c1', orgName: 'جمعية البر', orgRole: 'charity', warehouseId: 'wc', warehouseName: 'المستودع', city: 'جدة', itemId: ITEM, itemName: 'كراسي متحركة', condition: 'new', qty: 50, reserved: 0, updatedAt: new Date() }
   it('owner raises reserved up to qty, not above', async () => {

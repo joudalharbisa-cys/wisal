@@ -84,6 +84,16 @@ describe('stock dialog', () => {
     expect(onSave).toHaveBeenCalledWith({ kind: 'existing', item: CHAIRS }, 'used', 9)
   })
 
+  it('quantity cannot go below what is reserved', async () => {
+    const r = row({ qty: 40, reserved: 25 })
+    const { user, onSave } = setup({ rows: [r], editing: r })
+    await user.clear(qty())
+    await user.type(qty(), '10')
+    await user.click(save())
+    expect(screen.getByText('فيه 25 محجوزة لطلبات، الكمية ما تقل عنها')).toBeInTheDocument()
+    expect(onSave).not.toHaveBeenCalled()
+  })
+
   it('warns when the product and condition already exist', async () => {
     const { user } = setup({ rows: [row()] })
     await user.type(product(), 'كراسي')

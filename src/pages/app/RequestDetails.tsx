@@ -140,8 +140,8 @@ export default function RequestDetails() {
             <Row icon={<Users className="size-4" />} label="عدد المستفيدين"><span className="tabular-nums">{r.beneficiaries}</span></Row>
             <Row icon={<CalendarDays className="size-4" />} label="آخر موعد">{longDate(r.neededBy)}</Row>
             <Row icon={<PackageCheck className="size-4" />} label="الحالة المقبولة">{ACCEPT_LABEL[r.accept]}</Row>
-            <Row icon={<UserRound className="size-4" />} label="المستلم">{contact?.name ?? '—'}</Row>
-            <Row icon={<Phone className="size-4" />} label="الجوال"><span dir="ltr" className="tabular-nums">{contact?.phone ?? '—'}</span></Row>
+            <Row icon={<UserRound className="size-4" />} label="المستلم">{(contact ?? r.legacyReceiver)?.name ?? '—'}</Row>
+            <Row icon={<Phone className="size-4" />} label="الجوال"><span dir="ltr" className="tabular-nums">{(contact ?? r.legacyReceiver)?.phone ?? '—'}</span></Row>
             <Row icon={<MapPin className="size-4" />} label="مكان التسليم">{place}</Row>
           </section>
         </div>

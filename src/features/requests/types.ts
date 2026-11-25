@@ -55,6 +55,8 @@ export type HospitalRequest = {
   /** stockId → quantity held, set when a charity accepts. */
   reservation?: Record<string, number>
   acceptedAt?: Date
+  /** Receiver kept inside requests created before phase 5 (no requestContacts doc). */
+  legacyReceiver?: Contact
   charityId?: string
   charityName?: string
   warehouseId?: string

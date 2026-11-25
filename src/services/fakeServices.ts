@@ -379,5 +379,5 @@ export function createFakeServices(seed: Seed = {}) {
       },
     },
   }
-  return Object.assign(services, { _state: state })
+  return Object.assign(services, { _state: state, _emit: emitInv })
 }

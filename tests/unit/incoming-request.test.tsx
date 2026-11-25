@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
@@ -77,6 +77,21 @@ describe('incoming request page', () => {
     vi.spyOn(s.requests, 'accept').mockRejectedValue(new ServiceError('invalid-transition', 'taken'))
     await user.click(await screen.findByRole('button', { name: 'أقبل الطلب' }))
     expect(await screen.findByText('أخذته جمعية ثانية')).toBeInTheDocument()
+  })
+
+  it('when another charity takes the open request first, the page says so', async () => {
+    const { s } = renderAt('r2')
+    expect(await screen.findByRole('button', { name: 'أقبل الطلب' })).toBeInTheDocument()
+    s._state.requests.set('r2', { ...s._state.requests.get('r2')!, status: 2, open: false, charityId: 'c2', charityName: 'جمعية الشمال', warehouseId: 'wb' })
+    await act(async () => s._emit())
+    expect(await screen.findByText('أخذته جمعية ثانية')).toBeInTheDocument()
+    expect(screen.queryByText('ما لقينا هذا الطلب')).not.toBeInTheDocument()
+  })
+
+  it('an old request keeps showing its receiver after accepting', async () => {
+    const { user } = renderAt('r7', { requests: [{ ...req('r7'), legacyReceiver: { name: 'خالد', phone: '0550000000' } }], contacts: {} })
+    await user.click(await screen.findByRole('button', { name: 'قبول' }))
+    expect(await screen.findByText('خالد')).toBeInTheDocument()
   })
 
   it('a request for another charity shows not found', async () => {

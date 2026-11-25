@@ -34,9 +34,13 @@ export default function StockDialog({ warehouse, rows, items, editing, onClose, 
 
   const submit = async () => {
     const qty = parseQty(qtyText)
-    const e = { product: choice ? undefined : 'اختر المنتج', qty: qty === null ? 'اكتب الكمية بالأرقام من 0 إلى 99999' : undefined }
+    const reserved = editing?.reserved ?? 0
+    const e = {
+      product: choice ? undefined : 'اختر المنتج',
+      qty: qty === null ? 'اكتب الكمية بالأرقام من 0 إلى 99999' : qty < reserved ? `فيه ${reserved} محجوزة لطلبات، الكمية ما تقل عنها` : undefined,
+    }
     setErrors(e)
-    if (!choice || qty === null) return
+    if (!choice || qty === null || e.qty) return
     setSaving(true)
     setFailed(false)
     try {

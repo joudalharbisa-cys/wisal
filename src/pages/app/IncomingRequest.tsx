@@ -53,6 +53,8 @@ export default function IncomingRequest() {
   const [error, setError] = useState<string | null>(null)
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
+  // Seen as an open request: if it later becomes unreadable, another charity took it.
+  const [wasOpen, setWasOpen] = useState(false)
 
   useEffect(() => {
     if (!uid) return
@@ -60,6 +62,7 @@ export default function IncomingRequest() {
     return () => stops.forEach(s => s())
   }, [requests, inventory, uid, id])
   const accepted = !!r && r.status >= 2 && r.charityId === uid
+  useEffect(() => { if (r && r.status === 0 && r.open) setWasOpen(true) }, [r])
   useEffect(() => (accepted ? requests.watchContact(id, setContact) : undefined), [requests, id, accepted])
 
   if (session.kind !== 'member' || !org) return null
@@ -69,7 +72,7 @@ export default function IncomingRequest() {
     return (
       <AppShell title="طلب وارد">
         <section className={`${CARD} p-10 text-center`}>
-          <p className="font-bold">ما لقينا هذا الطلب</p>
+          <p className="font-bold">{wasOpen ? 'أخذته جمعية ثانية' : 'ما لقينا هذا الطلب'}</p>
           <Link to="/app" className="mt-4 inline-block text-sm font-medium text-primary underline">رجوع للطلبات الواردة</Link>
         </section>
       </AppShell>
@@ -117,8 +120,8 @@ export default function IncomingRequest() {
             {[`${r.delivery.city}، ${r.delivery.district}`, r.delivery.details].filter(Boolean).join(' · ')}
             {km !== undefined && <span className="block text-xs font-normal text-muted"><span className="tabular-nums">{formatKm(km)}</span> كم من مستودعك</span>}
           </Row>
-          {accepted && <Row icon={<UserRound className="size-4" />} label="المستلم">{contact?.name ?? '—'}</Row>}
-          {accepted && <Row icon={<Phone className="size-4" />} label="الجوال"><span dir="ltr" className="tabular-nums">{contact?.phone ?? '—'}</span></Row>}
+          {accepted && <Row icon={<UserRound className="size-4" />} label="المستلم">{(contact ?? r.legacyReceiver)?.name ?? '—'}</Row>}
+          {accepted && <Row icon={<Phone className="size-4" />} label="الجوال"><span dir="ltr" className="tabular-nums">{(contact ?? r.legacyReceiver)?.phone ?? '—'}</span></Row>}
         </section>
 
         <section className={`${CARD} h-fit p-6`}>
