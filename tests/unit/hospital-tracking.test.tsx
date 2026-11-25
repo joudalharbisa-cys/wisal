@@ -56,6 +56,14 @@ describe('hospital tracking', () => {
     expect(await screen.findByText('اعطِ الرمز لمندوبك قبل ما يروح، والجمعية تكتبه لما يستلم.')).toBeInTheDocument()
   })
 
+  it('one centred column: the code card sits last, under the details', async () => {
+    renderAt({ status: 4, mode: 'delivery', preparingAt: new Date(), outAt: new Date(), driver: DRIVER })
+    await screen.findByText('4827')
+    const headings = screen.getAllByRole('heading', { level: 2 }).map(h => h.textContent)
+    expect(headings.at(-1)).toBe('رمز الاستلام')
+    expect(headings.indexOf('حالة الطلب')).toBe(0)
+  })
+
   it('no courier form for delivery requests', async () => {
     renderAt({ status: 3, mode: 'delivery', preparingAt: new Date() })
     await screen.findByRole('list', { name: 'مراحل الطلب' })

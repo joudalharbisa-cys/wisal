@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowRight, CalendarDays, CheckCircle2, CircleAlert, HandHeart, RotateCcw, Send, KeyRound, MapPin, PackageCheck, Phone, UserRound, Users } from 'lucide-react'
+import { ArrowRight, CalendarDays, CircleAlert, HandHeart, RotateCcw, Send, KeyRound, MapPin, PackageCheck, Phone, UserRound, Users } from 'lucide-react'
 import Alert from '../../components/ui/Alert'
 import { PriorityBadge } from '../../components/ui/Badge'
 import Spinner from '../../components/ui/Spinner'
@@ -111,8 +111,8 @@ export default function RequestDetails() {
   }
   return (
     <AppShell title={`${r.itemName} · ${r.qty}`} sub={<span className="flex items-center gap-2"><PriorityBadge priority={r.priority} /> أُرسل {longDate(r.createdAt)}</span>}>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-        <div className="space-y-6">
+      {/* One centred column; the receipt code joins at the bottom once the request is out for delivery / ready for pickup. */}
+      <div className="mx-auto max-w-3xl space-y-6">
           {waiting && r.lastRejection && (
             <section className="flex flex-wrap items-start gap-4 rounded-card border border-medium/30 bg-white p-5 shadow-sm">
               <span className="grid size-10 shrink-0 place-items-center rounded-full bg-medium/10 text-medium" aria-hidden><CircleAlert className="size-5" /></span>
@@ -145,6 +145,7 @@ export default function RequestDetails() {
             <h2 className="mb-5 font-bold">سجل الطلب</h2>
             <Timeline request={r.lastRejection || !pastRejection ? r : { ...r, lastRejection: pastRejection }} viewer="hospital" />
           </section>
+          {hospital && <HospitalDelivery r={r} me={hospital} />}
           {hospital && <MeetingCard request={r} me={hospital} />}
           <section className={`${CARD} grid gap-x-8 px-6 py-3 sm:grid-cols-2`}>
             <Row icon={<HandHeart className="size-4" />} label="الجمعية">{r.charityName ?? 'طلب مفتوح، ما انرسل لجمعية للحين'}</Row>
@@ -155,27 +156,14 @@ export default function RequestDetails() {
             <Row icon={<Phone className="size-4" />} label="الجوال"><span dir="ltr" className="tabular-nums">{(contact ?? r.legacyReceiver)?.phone ?? '—'}</span></Row>
             <Row icon={<MapPin className="size-4" />} label="مكان التسليم">{place}</Row>
           </section>
-        </div>
-        <div className="space-y-6">
-        <section className={`${CARD} h-fit p-6 text-center`}>
-          <span className="mx-auto grid size-12 place-items-center rounded-full bg-accent-light text-accent"><KeyRound className="size-6" /></span>
-          <h2 className="mt-3 font-bold">رمز الاستلام</h2>
-          {r.status === 6 ? (
-            <div className="mt-4 flex items-start gap-3 rounded-control bg-normal/10 p-3.5 text-start text-sm">
-              <CheckCircle2 className="size-5 shrink-0 text-normal" aria-hidden />
-              <div><p className="font-bold">وصل الطلب</p><span className="text-xs text-muted">تم تسليم الطلب للمستلم.</span></div>
-            </div>
-          ) : r.status >= 4 ? (
-            <>
+          {(r.status === 4 || r.status === 5) && (
+            <section className={`${CARD} p-6 text-center`}>
+              <span className="mx-auto grid size-12 place-items-center rounded-full bg-accent-light text-accent"><KeyRound className="size-6" /></span>
+              <h2 className="mt-3 font-bold">رمز الاستلام</h2>
               <div dir="ltr" aria-label="رمز الاستلام" className="mx-auto mt-4 w-fit rounded-card border-2 border-dashed border-accent/50 bg-accent-light px-6 py-3 text-4xl font-bold tracking-[0.4em] tabular-nums">{code ?? '····'}</div>
               <p className="mt-3 text-xs text-muted">{r.mode === 'pickup' ? 'اعطِ الرمز لمندوبك قبل ما يروح، والجمعية تكتبه لما يستلم.' : 'اعطِه للمندوب عند الاستلام بس. الجمعية ما تشوف هذا الرمز.'}</p>
-            </>
-          ) : (
-            <p className="mt-3 text-sm text-muted">{r.mode === 'pickup' ? 'يظهر رمز الاستلام هنا لما يكون الطلب جاهز للاستلام' : 'يظهر رمز الاستلام هنا لما يطلع الطلب للتوصيل'}</p>
+            </section>
           )}
-        </section>
-        {hospital && <HospitalDelivery r={r} me={hospital} />}
-        </div>
       </div>
     </AppShell>
   )
