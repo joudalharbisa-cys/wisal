@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowRight, CalendarDays, CircleAlert, HandHeart, RotateCcw, Send, KeyRound, MapPin, PackageCheck, Phone, UserRound, Users } from 'lucide-react'
+import { ArrowRight, CalendarDays, CheckCircle2, CircleAlert, HandHeart, RotateCcw, Send, KeyRound, MapPin, PackageCheck, Phone, UserRound, Users } from 'lucide-react'
 import Alert from '../../components/ui/Alert'
 import { PriorityBadge } from '../../components/ui/Badge'
 import Spinner from '../../components/ui/Spinner'
@@ -9,6 +9,9 @@ import { longDate, RequestStatusBadge } from '../../features/requests/RequestSta
 import { ACCEPT_LABEL, type Contact, type HospitalRequest, type Ranked } from '../../features/requests/types'
 import { rankCharities } from '../../features/requests/rank'
 import RankingList from '../../features/requests/RankingList'
+import HospitalDelivery, { CodeLockNotice } from '../../features/requests/HospitalDelivery'
+import MeetingCard from '../../features/requests/MeetingCard'
+import Timeline from '../../features/requests/RequestTimeline'
 import Button from '../../components/ui/Button'
 import { useCurrentSession } from '../../session/Guard'
 import AppShell from '../../layout/AppShell'
@@ -124,7 +127,7 @@ export default function RequestDetails() {
             </section>
           )}
           <section className={`${CARD} p-6`}>
-            <div className="flex items-center justify-between"><h2 className="font-bold">حالة الطلب</h2><RequestStatusBadge status={r.status} open={r.open} /></div>
+            <div className="flex items-center justify-between"><h2 className="font-bold">حالة الطلب</h2><RequestStatusBadge status={r.status} open={r.open} mode={r.mode} /></div>
             {r.status === 0 && r.open && <p className="mt-2 text-sm text-muted">طلب مفتوح، أي جمعية عندها الكمية تقدر تقبله.</p>}
             <ol className="mt-6 grid grid-cols-7 gap-1">
               {([0, 1, 2, 3, 4, 5, 6] as RequestStatus[]).map(i => (
@@ -135,6 +138,12 @@ export default function RequestDetails() {
               ))}
             </ol>
           </section>
+          {hospital && <CodeLockNotice r={r} me={hospital} />}
+          <section className={`${CARD} p-6`}>
+            <h2 className="mb-5 font-bold">سجل الطلب</h2>
+            <Timeline request={r} viewer="hospital" />
+          </section>
+          {hospital && <MeetingCard request={r} me={hospital} />}
           <section className={`${CARD} grid gap-x-8 px-6 py-3 sm:grid-cols-2`}>
             <Row icon={<HandHeart className="size-4" />} label="الجمعية">{r.charityName ?? 'طلب مفتوح، ما انرسل لجمعية للحين'}</Row>
             <Row icon={<Users className="size-4" />} label="عدد المستفيدين"><span className="tabular-nums">{r.beneficiaries}</span></Row>
@@ -145,10 +154,16 @@ export default function RequestDetails() {
             <Row icon={<MapPin className="size-4" />} label="مكان التسليم">{place}</Row>
           </section>
         </div>
+        <div className="space-y-6">
         <section className={`${CARD} h-fit p-6 text-center`}>
           <span className="mx-auto grid size-12 place-items-center rounded-full bg-accent-light text-accent"><KeyRound className="size-6" /></span>
           <h2 className="mt-3 font-bold">رمز الاستلام</h2>
-          {r.status >= 2 ? (
+          {r.status === 6 ? (
+            <div className="mt-4 flex items-start gap-3 rounded-control bg-normal/10 p-3.5 text-start text-sm">
+              <CheckCircle2 className="size-5 shrink-0 text-normal" aria-hidden />
+              <div><p className="font-bold">تم التحقق من الوصول</p><span className="text-xs text-muted">الجمعية كتبت الرمز الصحيح والطلب مكتمل.</span></div>
+            </div>
+          ) : r.status >= 2 ? (
             <>
               <div dir="ltr" aria-label="رمز الاستلام" className="mx-auto mt-4 w-fit rounded-card border-2 border-dashed border-accent/50 bg-accent-light px-6 py-3 text-4xl font-bold tracking-[0.4em] tabular-nums">{code ?? '····'}</div>
               <p className="mt-3 text-xs text-muted">اعطِه للمندوب عند الاستلام بس. الجمعية ما تشوف هذا الرمز.</p>
@@ -157,6 +172,8 @@ export default function RequestDetails() {
             <p className="mt-3 text-sm text-muted">يظهر رمز الاستلام هنا بعد موافقة الجمعية</p>
           )}
         </section>
+        {hospital && <HospitalDelivery r={r} me={hospital} />}
+        </div>
       </div>
     </AppShell>
   )

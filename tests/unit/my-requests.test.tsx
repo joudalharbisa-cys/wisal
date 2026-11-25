@@ -45,8 +45,8 @@ const withCharities = {
 describe('after a rejection', () => {
   it('rejected request shows the banner and lets the hospital choose again', async () => {
     const user = renderAt('/app/requests/r5', withCharities)
-    expect(await screen.findByText('رفضت جمعية الشمال الطلب')).toBeInTheDocument()
-    expect(screen.getByText(/مشغولين/)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'رفضت جمعية الشمال الطلب' })).toBeInTheDocument()
+    expect(screen.getByText(/مشغولين/, { selector: 'p' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'اختر جمعية ثانية' }))
     const list = await screen.findByRole('list', { name: 'الجمعيات المناسبة' })
     expect(within(list).getAllByRole('heading').map(h => h.textContent)).toContain('جمعية الشمال')
@@ -60,7 +60,7 @@ describe('after a rejection', () => {
     const user = renderAt('/app/requests/r5', withCharities)
     await user.click(await screen.findByRole('button', { name: 'انشره كطلب مفتوح' }))
     expect(await screen.findByText('طلب مفتوح', { selector: '[data-testid="status-badge"]' })).toBeInTheDocument()
-    expect(screen.queryByText('رفضت جمعية الشمال الطلب')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'رفضت جمعية الشمال الطلب' })).not.toBeInTheDocument()
   })
 
   it('the list marks it as waiting for the hospital', async () => {
