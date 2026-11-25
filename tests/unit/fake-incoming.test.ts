@@ -76,6 +76,7 @@ describe('fake incoming', () => {
     await as(s, 'c1'); await s.requests.reject(C1, id, '')
     await as(s, 'h1'); await s.requests.publishOpen(H, id)
     expect(reqOf(s, id)).toMatchObject({ status: 0, open: true })
+    expect(reqOf(s, id).publishedAt).toBeInstanceOf(Date)
     await as(s, 'c1')
     expect((await watch<HospitalRequest[]>(cb => s.requests.watchOpen(cb))()).map(r => r.id)).toEqual([id])
     await s.requests.accept(C1, id, 'wa')
@@ -96,7 +97,8 @@ describe('fake incoming', () => {
     await as(s, 'c1'); await s.requests.reject(C1, id, '')
     await as(s, 'h1'); await s.requests.chooseAgain(H, id, { charityId: 'c2', charityName: C2.name, warehouseId: 'wb' })
     expect(reqOf(s, id)).toMatchObject({ status: 1, open: false, charityId: 'c2' })
-    expect(reqOf(s, id).lastRejection).toBeUndefined()
+    expect(reqOf(s, id).lastRejection?.charityName).toBe(C1.name) // kept as history
+    expect(reqOf(s, id).sentAt).toBeInstanceOf(Date)
   })
 
   it('only the right party can act', async () => {

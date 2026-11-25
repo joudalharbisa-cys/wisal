@@ -57,6 +57,8 @@ describe('fake requests', () => {
     const { id, code } = await s.requests.send(H, REQ, null)
     const r = await watch<HospitalRequest | null>(cb => s.requests.watchOne(id, cb))()
     expect(r?.status).toBe(0)
+    expect(r?.publishedAt).toBeInstanceOf(Date)
+    expect(r?.sentAt).toBeUndefined()
     expect(r?.open).toBe(true)
     expect(r?.charityId).toBeUndefined()
     expect(code).toMatch(/^\d{4}$/)

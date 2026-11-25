@@ -39,11 +39,11 @@ const base = (over: Record<string, unknown> = {}) => ({
   hospitalId: 'h1', hospitalName: 'مستشفى الملك فهد', itemId: ITEM, itemName: 'كراسي متحركة', qty: 40, accept: 'any', priority: 'urgent',
   beneficiaries: 40, neededBy: new Date(2026, 10, 27), open: false,
   delivery: { lat: 21.54, lng: 39.17, city: 'جدة', district: 'الشرفية', details: '' },
-  status: 1, charityId: 'c1', charityName: 'جمعية البر', warehouseId: 'wc', excluded: [], createdAt: ts(), updatedAt: ts(), ...over,
+  status: 1, charityId: 'c1', charityName: 'جمعية البر', warehouseId: 'wc', excluded: [], sentAt: ts(), createdAt: ts(), updatedAt: ts(), ...over,
 })
 const openReq = (over: Record<string, unknown> = {}) => {
-  const r: Record<string, unknown> = base({ status: 0, open: true, ...over })
-  delete r.charityId; delete r.charityName; delete r.warehouseId
+  const r: Record<string, unknown> = base({ status: 0, open: true, publishedAt: ts(), ...over })
+  delete r.charityId; delete r.charityName; delete r.warehouseId; delete r.sentAt
   return r
 }
 async function send(uid: string, data: Record<string, unknown>, opts: { code?: string | null; id?: string; contact?: Record<string, unknown> | null } = {}) {
@@ -75,6 +75,14 @@ describe('creating requests', () => {
   })
   it('the old receiver field is no longer accepted', async () => {
     await assertFails(send('h1', base({ receiver: { name: 'أحمد', phone: '0551234567' } })))
+  })
+  it('a sent request carries sentAt; an open one carries publishedAt', async () => {
+    const noSent: Record<string, unknown> = base(); delete noSent.sentAt
+    await assertFails(send('h1', noSent))
+    const noPub = openReq(); delete noPub.publishedAt
+    await assertFails(send('h1', noPub))
+    const both = openReq(); both.sentAt = ts()
+    await assertFails(send('h1', both))
   })
   it('code must be four digits', async () => { await assertFails(send('h1', base(), { code: '12a4' })) })
   it('charity cannot create a request', async () => {

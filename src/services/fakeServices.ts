@@ -303,7 +303,6 @@ export function createFakeServices(seed: Seed = {}) {
           state.stock.set(k, { ...row, reserved: row.reserved + n, updatedAt: t })
         }
         const next: HospitalRequest = { ...r, status: 2, open: false, charityId: charity.uid, charityName: o.name, warehouseId, reservation: plan, acceptedAt: t, updatedAt: t }
-        delete next.lastRejection
         state.requests.set(id, next)
         emitInv()
       },
@@ -320,15 +319,15 @@ export function createFakeServices(seed: Seed = {}) {
         const r = actingHospital(hospital, id)
         const c = state.orgs.get(choice.charityId)
         if (r.status !== 0 || c?.role !== 'charity' || c.status !== 'approved' || c.name !== choice.charityName) throw new ServiceError('invalid-transition', 'cannot choose')
-        const { lastRejection: _l, ...rest } = r
-        state.requests.set(id, { ...rest, ...choice, status: 1, open: false, updatedAt: now() })
+        const t = now()
+        state.requests.set(id, { ...r, ...choice, status: 1, open: false, sentAt: t, updatedAt: t })
         emitInv()
       },
       async publishOpen(hospital, id) {
         const r = actingHospital(hospital, id)
         if (r.status !== 0 || r.open) throw new ServiceError('invalid-transition', 'not waiting')
-        const { lastRejection: _l, ...rest } = r
-        state.requests.set(id, { ...rest, open: true, updatedAt: now() })
+        const t = now()
+        state.requests.set(id, { ...r, open: true, publishedAt: t, updatedAt: t })
         emitInv()
       },
       watchCode(id, cb, onError) {
@@ -369,7 +368,7 @@ export function createFakeServices(seed: Seed = {}) {
         state.requests.set(id, {
           id, hospitalId: hospital.uid, hospitalName: hospital.name, itemId: item.key, itemName: item.name, qty: req.qty, accept: req.accept,
           priority: req.priority, beneficiaries: req.beneficiaries, neededBy: req.neededBy, delivery: { ...req.delivery },
-          status: choice ? 1 : 0, open: !choice, excluded: [], ...(choice ?? {}), createdAt: t, updatedAt: t,
+          status: choice ? 1 : 0, open: !choice, excluded: [], ...(choice ?? {}), ...(choice ? { sentAt: t } : { publishedAt: t }), createdAt: t, updatedAt: t,
         })
         state.contacts.set(id, { hospitalId: hospital.uid, ...req.receiver })
         const code = makeReceiptCode()

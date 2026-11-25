@@ -56,7 +56,7 @@ service cloud.firestore {
         let required = ['hospitalId', 'hospitalName', 'itemId', 'itemName', 'qty', 'accept', 'priority', 'beneficiaries',
                         'neededBy', 'delivery', 'status', 'open', 'excluded', 'createdAt', 'updatedAt'];
         return d.keys().hasAll(required)
-          && d.keys().hasOnly(required.concat(['charityId', 'charityName', 'warehouseId']))
+          && d.keys().hasOnly(required.concat(['charityId', 'charityName', 'warehouseId', 'sentAt', 'publishedAt']))
           && d.hospitalId == request.auth.uid
           && d.hospitalName == myOrg().name
           && validKey(d.itemId)
@@ -72,8 +72,9 @@ service cloud.firestore {
           && d.createdAt == request.time && d.updatedAt == request.time
           && existsAfter(/databases/$(database)/documents/requestSecrets/$(rid))
           && existsAfter(/databases/$(database)/documents/requestContacts/$(rid))
-          && ((d.status == 0 && !('charityId' in d) && !('charityName' in d) && !('warehouseId' in d))
-              || (d.status == 1 && charityOk(d)));
+          && ((d.status == 0 && !('charityId' in d) && !('charityName' in d) && !('warehouseId' in d)
+               && d.get('publishedAt', null) == request.time && !('sentAt' in d))
+              || (d.status == 1 && charityOk(d) && d.get('sentAt', null) == request.time && !('publishedAt' in d)));
       }
       allow create: if isApprovedHospital() && validRequest(request.resource.data);
 
@@ -115,19 +116,19 @@ service cloud.firestore {
           && d.status == 2 && d.open == false
           && d.charityId == request.auth.uid && d.charityName == myOrg().name && ownWarehouse(d.warehouseId)
           && d.reservation is map && d.acceptedAt == request.time && d.updatedAt == request.time
-          && changed().hasOnly(['status', 'open', 'charityId', 'charityName', 'warehouseId', 'reservation', 'acceptedAt', 'updatedAt', 'lastRejection']);
+          && changed().hasOnly(['status', 'open', 'charityId', 'charityName', 'warehouseId', 'reservation', 'acceptedAt', 'updatedAt']);
       }
       function chooseAgainOk(d) {     // 0 → 1 by the hospital
         return resource.data.hospitalId == request.auth.uid && isApprovedHospital()
           && resource.data.status == 0 && d.status == 1 && d.open == false && charityOk(d)
-          && !('lastRejection' in d) && d.updatedAt == request.time
-          && changed().hasOnly(['status', 'open', 'charityId', 'charityName', 'warehouseId', 'lastRejection', 'updatedAt']);
+          && d.sentAt == request.time && d.updatedAt == request.time
+          && changed().hasOnly(['status', 'open', 'charityId', 'charityName', 'warehouseId', 'sentAt', 'updatedAt']);
       }
       function publishOk(d) {         // 0 waiting → 0 open by the hospital
         return resource.data.hospitalId == request.auth.uid && isApprovedHospital()
           && resource.data.status == 0 && resource.data.open == false
-          && d.status == 0 && d.open == true && !('lastRejection' in d) && d.updatedAt == request.time
-          && changed().hasOnly(['open', 'lastRejection', 'updatedAt']);
+          && d.status == 0 && d.open == true && d.publishedAt == request.time && d.updatedAt == request.time
+          && changed().hasOnly(['open', 'publishedAt', 'updatedAt']);
       }
       allow update: if signedIn() && (acceptOk(request.resource.data) || rejectOk(request.resource.data)
         || takeOk(request.resource.data) || chooseAgainOk(request.resource.data) || publishOk(request.resource.data));

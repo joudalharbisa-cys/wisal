@@ -1,5 +1,5 @@
 import type { ItemChoice, LatLng, StockRow, Warehouse } from '../inventory/types'
-import type { Priority, RequestStatus } from '../../lib/labels'
+import type { DeliveryMode, Priority, RequestStatus } from '../../lib/labels'
 
 export type Accept = 'new' | 'any'
 export const ACCEPT_LABEL: Record<Accept, string> = { new: 'جديد بس', any: 'جديد او مستعمل' }
@@ -55,6 +55,19 @@ export type HospitalRequest = {
   /** stockId → quantity held, set when a charity accepts. */
   reservation?: Record<string, number>
   acceptedAt?: Date
+  /** Phase 6: when it was sent to the current charity / published as open, and each later step. */
+  sentAt?: Date
+  publishedAt?: Date
+  preparingAt?: Date
+  outAt?: Date
+  arrivedAt?: Date
+  verifiedAt?: Date
+  /** Fixed when preparation starts, from the charity's «تقدر توصّل». */
+  mode?: DeliveryMode
+  driver?: Person
+  pickup?: Person
+  meeting?: Meeting
+  codeFails?: number
   /** Receiver kept inside requests created before phase 5 (no requestContacts doc). */
   legacyReceiver?: Contact
   charityId?: string
@@ -66,6 +79,10 @@ export type HospitalRequest = {
 
 /** Receiver details, kept apart from the request: the hospital, and the charity once it accepts. */
 export type Contact = { name: string; phone: string }
+
+/** A driver (delivery) or the hospital's courier (pickup), with the expected time. */
+export type Person = { name: string; phone: string; eta: Date }
+export type Meeting = { at: Date; link: string; byRole: 'hospital' | 'charity'; byName: string }
 
 export type CharityInfo = { id: string; name: string; canDeliver: boolean; workingHours: string }
 export type CandidateWarehouse = Warehouse & { orgId: string }

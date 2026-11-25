@@ -285,7 +285,7 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
             tx.update(reqRef, sent
               ? { status: 2, warehouseId, reservation: plan, acceptedAt: serverTimestamp(), updatedAt: serverTimestamp() }
               : { status: 2, open: false, charityId: charity.uid, charityName: charity.name, warehouseId, reservation: plan,
-                  acceptedAt: serverTimestamp(), updatedAt: serverTimestamp(), lastRejection: deleteField() })
+                  acceptedAt: serverTimestamp(), updatedAt: serverTimestamp() })
           })
         } catch (e) {
           if (e instanceof ServiceError) throw e
@@ -309,10 +309,10 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
         }))
       },
       async chooseAgain(_hospital, id, choice) {
-        await wrap(updateDoc(doc(db(), 'requests', id), { status: 1, open: false, ...choice, lastRejection: deleteField(), updatedAt: serverTimestamp() }))
+        await wrap(updateDoc(doc(db(), 'requests', id), { status: 1, open: false, ...choice, sentAt: serverTimestamp(), updatedAt: serverTimestamp() }))
       },
       async publishOpen(_hospital, id) {
-        await wrap(updateDoc(doc(db(), 'requests', id), { open: true, lastRejection: deleteField(), updatedAt: serverTimestamp() }))
+        await wrap(updateDoc(doc(db(), 'requests', id), { open: true, publishedAt: serverTimestamp(), updatedAt: serverTimestamp() }))
       },
       async loadCandidates(itemId) {
         const found = await wrap(getDocs(query(collectionGroup(db(), 'stock'), where('orgRole', '==', 'charity'), where('itemId', '==', itemId))))
@@ -344,7 +344,8 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
         batch.set(ref, {
           hospitalId: hospital.uid, hospitalName: hospital.name, itemId: wanted.key, itemName, qty: req.qty, accept: req.accept, priority: req.priority,
           beneficiaries: req.beneficiaries, neededBy: Timestamp.fromDate(req.neededBy), delivery: { ...req.delivery },
-          status: choice ? 1 : 0, open: !choice, ...(choice ?? {}), excluded: [], createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+          status: choice ? 1 : 0, open: !choice, ...(choice ?? {}), ...(choice ? { sentAt: serverTimestamp() } : { publishedAt: serverTimestamp() }),
+          excluded: [], createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
         })
         batch.set(doc(db(), 'requestSecrets', ref.id), { code, hospitalId: hospital.uid })
         batch.set(doc(db(), 'requestContacts', ref.id), { hospitalId: hospital.uid, name: req.receiver.name, phone: req.receiver.phone })
@@ -366,6 +367,10 @@ function toRequest(id: string, d: DocumentData): HospitalRequest {
     neededBy: toDate(d.neededBy), createdAt: toDate(d.createdAt), updatedAt: toDate(d.updatedAt),
     acceptedAt: d.acceptedAt ? toDate(d.acceptedAt) : undefined,
     lastRejection: d.lastRejection ? { ...d.lastRejection, at: toDate(d.lastRejection.at) } : undefined,
+    ...Object.fromEntries((['sentAt', 'publishedAt', 'preparingAt', 'outAt', 'arrivedAt', 'verifiedAt'] as const).map(k => [k, d[k] ? toDate(d[k]) : undefined])),
+    driver: d.driver ? { ...d.driver, eta: toDate(d.driver.eta) } : undefined,
+    pickup: d.pickup ? { ...d.pickup, eta: toDate(d.pickup.eta) } : undefined,
+    meeting: d.meeting ? { ...d.meeting, at: toDate(d.meeting.at) } : undefined,
   }
 }
 

@@ -137,19 +137,23 @@ describe('open requests', () => {
 describe('hospital after a rejection', () => {
   it('hospital chooses another charity after a rejection', async () => {
     await seed('requests/r1', rejected())
-    await assertSucceeds(r('h1').update({ status: 1, charityId: 'c2', charityName: 'جمعية الشمال', warehouseId: 'w2', lastRejection: del(), updatedAt: ts() }))
+    await assertSucceeds(r('h1').update({ status: 1, charityId: 'c2', charityName: 'جمعية الشمال', warehouseId: 'w2', sentAt: ts(), updatedAt: ts() }))
   })
   it('hospital cannot choose a pending charity', async () => {
     await seed('requests/r1', rejected())
-    await assertFails(r('h1').update({ status: 1, charityId: 'pc', charityName: 'جمعية جديدة', warehouseId: 'wp', lastRejection: del(), updatedAt: ts() }))
+    await assertFails(r('h1').update({ status: 1, charityId: 'pc', charityName: 'جمعية جديدة', warehouseId: 'wp', sentAt: ts(), updatedAt: ts() }))
   })
   it('hospital publishes a rejected request as open', async () => {
     await seed('requests/r1', rejected())
-    await assertSucceeds(r('h1').update({ open: true, lastRejection: del(), updatedAt: ts() }))
+    await assertSucceeds(r('h1').update({ open: true, publishedAt: ts(), updatedAt: ts() }))
+  })
+  it('the last rejection stays as history when the hospital moves on', async () => {
+    await seed('requests/r1', rejected())
+    await assertFails(r('h1').update({ open: true, publishedAt: ts(), lastRejection: del(), updatedAt: ts() }))
   })
   it('charity cannot publish', async () => {
     await seed('requests/r1', rejected())
-    await assertFails(r('c1').update({ open: true, lastRejection: del(), updatedAt: ts() }))
+    await assertFails(r('c1').update({ open: true, publishedAt: ts(), updatedAt: ts() }))
   })
 })
 
