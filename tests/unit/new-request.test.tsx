@@ -111,6 +111,35 @@ describe('new request', () => {
     expect(screen.getByRole('textbox', { name: 'الكمية' })).toHaveValue('')
   })
 
+  it('without a warehouse or a pin, typed coordinates set the place', async () => {
+    const { user } = renderAt('/app/requests/new', { warehouses: { c1: [W1], c6: [W6] } })
+    await fill(user)
+    await user.selectOptions(screen.getByRole('combobox', { name: 'المدينة' }), 'جدة')
+    await user.type(screen.getByRole('textbox', { name: 'الحي' }), 'الشرفية')
+    await user.type(screen.getByRole('textbox', { name: 'خط العرض' }), '21.5433')
+    await user.type(screen.getByRole('textbox', { name: 'خط الطول' }), '39.1728')
+    await show(user)
+    expect(await screen.findByRole('list', { name: 'الجمعيات المناسبة' })).toBeInTheDocument()
+  })
+
+  it('the date field allows separators on phone keyboards', async () => {
+    renderAt()
+    expect(await screen.findByRole('textbox', { name: 'آخر موعد تحتاجه فيه' })).not.toHaveAttribute('inputmode', 'numeric')
+  })
+
+  it('focus moves to the first problem, then to each new step', async () => {
+    const { user } = renderAt()
+    await screen.findByDisplayValue('الشرفية')
+    await show(user)
+    expect(screen.getByRole('combobox', { name: 'المنتج' })).toHaveFocus()
+    await fill(user)
+    await show(user)
+    expect(await screen.findByRole('heading', { name: 'الجمعيات المناسبة', level: 1 })).toHaveFocus()
+    await user.click(screen.getByRole('button', { name: 'اختر جمعية الشمال' }))
+    await user.click(screen.getByRole('button', { name: 'أرسل الطلب لـجمعية الشمال' }))
+    expect(await screen.findByRole('heading', { name: 'تم إرسال الطلب', level: 1 })).toHaveFocus()
+  })
+
   it('moving the pin fills the district from the map', async () => {
     const { user } = renderAt()
     await screen.findByDisplayValue('الشرفية')

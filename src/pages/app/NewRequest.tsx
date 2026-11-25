@@ -12,6 +12,7 @@ import { useAddressFromPin } from '../../features/geo/useAddressFromPin'
 import { getCurrentLocation } from '../../features/inventory/geo'
 import LocationMap from '../../features/inventory/LocationMap'
 import { normalizeName } from '../../features/inventory/names'
+import { parseCoord } from '../../features/inventory/validate'
 import ProductPicker from '../../features/inventory/ProductPicker'
 import type { Item, LatLng, Warehouse } from '../../features/inventory/types'
 import { CITIES, CITY_CENTERS } from '../../features/orgs/cities'
@@ -73,6 +74,20 @@ export default function NewRequest() {
   const [userPin, setUserPin] = useState<LatLng | null>(null)
   const touched = useRef({ city: false, district: false })
   const prefilled = useRef(false)
+  const [coordText, setCoordText] = useState<{ lat?: string; lng?: string }>({})
+  const [errorTick, setErrorTick] = useState(0)
+  const firstStep = useRef(true)
+
+  // Screen readers and keyboards follow the flow: each new step focuses its heading…
+  useEffect(() => {
+    if (firstStep.current) { firstStep.current = false; return }
+    const h = document.querySelector<HTMLElement>('main h1')
+    if (h) { h.tabIndex = -1; h.focus() }
+  }, [step])
+  // …and a failed check focuses the first field with a problem.
+  useEffect(() => {
+    if (errorTick) document.querySelector<HTMLElement>('main [aria-invalid="true"]')?.focus()
+  }, [errorTick])
 
   useEffect(() => {
     if (!uid) return
@@ -99,11 +114,22 @@ export default function NewRequest() {
   if (org.role !== 'hospital') return <Navigate to="/app" replace />
 
   const set = <K extends keyof RequestDraft>(k: K, v: RequestDraft[K]) => setDraft(d => ({ ...d, [k]: v }))
-  const place = (p: LatLng) => {
-    set('delivery', p)
+  const pinMoved = (p: LatLng) => {
     setUserPin(p)
     touched.current = { city: false, district: false }
     setErrors(e => ({ ...e, delivery: undefined }))
+  }
+  const place = (p: LatLng) => { set('delivery', p); setCoordText({}); pinMoved(p) }
+  // Typed coordinates: the keyboard path to a place (and the fallback when location access is refused).
+  const coordValue = (k: 'lat' | 'lng') => coordText[k] ?? (draft.delivery ? draft.delivery[k].toFixed(4) : '')
+  const typeCoord = (k: 'lat' | 'lng', v: string) => {
+    const next = { lat: coordValue('lat'), lng: coordValue('lng'), [k]: v }
+    setCoordText(t => ({ ...t, [k]: v }))
+    const lat = parseCoord(next.lat)
+    const lng = parseCoord(next.lng)
+    const p = lat !== null && lng !== null ? { lat, lng } : null
+    set('delivery', p)
+    if (p) pinMoved(p)
   }
   const locate = async () => {
     setLocating(true)
@@ -114,7 +140,7 @@ export default function NewRequest() {
   const showCharities = async () => {
     const { value, errors: e } = validateRequest(draft, new Date())
     setErrors(e)
-    if (!value) return
+    if (!value) { setErrorTick(t => t + 1); return }
     setValid(value)
     setLoading(true)
     setLoadFailed(false)
@@ -230,7 +256,7 @@ export default function NewRequest() {
             <ChoiceGroup<Accept> label="الحالة المقبولة" value={draft.accept} onChange={v => set('accept', v)} options={[{ value: 'new', label: ACCEPT_LABEL.new }, { value: 'any', label: ACCEPT_LABEL.any }]} />
             <PrioritySelect value={draft.priority} onChange={p => set('priority', p)} />
             <Field label="آخر موعد تحتاجه فيه" error={errors.neededBy} hint="مثال: 2026-11-27">
-              <Input dir="ltr" inputMode="numeric" autoComplete="off" placeholder="YYYY-MM-DD" value={draft.neededBy} onChange={e => set('neededBy', e.target.value)} invalid={!!errors.neededBy} className="text-end tabular-nums" />
+              <Input dir="ltr" inputMode="text" autoComplete="off" placeholder="YYYY-MM-DD" value={draft.neededBy} onChange={e => set('neededBy', e.target.value)} invalid={!!errors.neededBy} className="text-end tabular-nums" />
             </Field>
           </Section>
 
@@ -250,6 +276,14 @@ export default function NewRequest() {
             </div>
             <div className="flex items-center gap-2 rounded-control bg-primary-light/60 px-3 py-2 text-xs text-primary-dark">
               <Sparkles className="size-3.5 shrink-0" /> الحي والمدينة يتعبون من مكان الدبوس، وتقدر تعدلهم
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="خط العرض">
+                <Input dir="ltr" inputMode="decimal" autoComplete="off" placeholder="21.5433" value={coordValue('lat')} onChange={e => typeCoord('lat', e.target.value)} invalid={!!errors.delivery} className="text-end tabular-nums" />
+              </Field>
+              <Field label="خط الطول">
+                <Input dir="ltr" inputMode="decimal" autoComplete="off" placeholder="39.1728" value={coordValue('lng')} onChange={e => typeCoord('lng', e.target.value)} invalid={!!errors.delivery} className="text-end tabular-nums" />
+              </Field>
             </div>
             {errors.delivery && <Alert tone="danger">{errors.delivery}</Alert>}
             {geoFailed && <Alert tone="warning">ما قدرنا نحدد موقعك، اضغط على الخريطة لمكان التسليم</Alert>}

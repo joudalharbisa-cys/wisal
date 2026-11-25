@@ -88,6 +88,8 @@ describe('request validation', () => {
     expect(value!.neededBy.getFullYear()).toBe(2026)
     expect(validateRequest(draft({ neededBy: '25/11/2026' }), today).errors).toEqual({})
     expect(validateRequest(draft({ neededBy: '٢٠٢٦-١١-٢٥' }), today).errors).toEqual({})
+    expect(validateRequest(draft({ neededBy: '20261125' }), today).errors).toEqual({})
+    expect(validateRequest(draft({ neededBy: '2026 11 25' }), today).errors).toEqual({})
   })
 
   it('reports each bad field', () => {

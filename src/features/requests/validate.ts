@@ -15,9 +15,10 @@ export function parsePhone(s: string): string | null {
 export function parseDateInput(s: string): Date | null {
   const t = toWesternDigits(s).trim()
   let y: number, m: number, d: number
-  let match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(t)
+  // Year first with any separator (phone keypads may only offer spaces or dots), compact YYYYMMDD, or day first.
+  let match = /^(\d{4})[\s./-]+(\d{1,2})[\s./-]+(\d{1,2})$/.exec(t) ?? /^(\d{4})(\d{2})(\d{2})$/.exec(t)
   if (match) [y, m, d] = [+match[1], +match[2], +match[3]]
-  else if ((match = /^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})$/.exec(t))) [d, m, y] = [+match[1], +match[2], +match[3]]
+  else if ((match = /^(\d{1,2})[\s./-]+(\d{1,2})[\s./-]+(\d{4})$/.exec(t))) [d, m, y] = [+match[1], +match[2], +match[3]]
   else return null
   const date = new Date(y, m - 1, d)
   return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d ? date : null
