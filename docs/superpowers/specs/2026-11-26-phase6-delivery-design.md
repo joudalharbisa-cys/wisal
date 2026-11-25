@@ -96,6 +96,16 @@ Cancelling, partial delivery, live GPS tracking and the map/route (phase 8), not
 
 Spark, client batches/transactions, Western digits (time pickers must show Western digits — reuse the phase 3 calendar plus a simple time select), Arabic copy.
 
+## Calls made after the builder check
+
+- **Rules prove the stock deduction.** The verify rule reads the (at most two) rows named in `reservation` (`…__new`, `…__used`) with `get`/`getAfter` and requires both `qty` and `reserved` to fall by exactly the reserved amount in the same batch. The batch uses `increment(-n)` and also rewrites `warehouseName`/`city` from the current warehouse (so a rename can't make the batch fail).
+- **Code counter can't be bypassed:** verify compares the **stored** `resource.data.codeAttempt` with the secret; verify's changed keys are only `status`, `verifiedAt`, `updatedAt`; the attempt write requires `codeFails == get('codeFails', 0) + 1`, `codeFails` before < 5, status unchanged. Verify doesn't require < 5 (a correct 5th try still closes). The UI tells "wrong code" (permission-denied on verify) apart from network errors, which don't say «الرمز غلط».
+- **Rejections in the timeline:** `lastRejection` is no longer deleted on choose-again / take / publish; it stays as history and the banner shows only while status 0 && !open. Only the latest rejection is kept (rare to have more than one).
+- **Open requests:** new `publishedAt` (create with status 0, and publish) shown as «انتشر كطلب مفتوح».
+- **Pickup courier:** the hospital can enter it from status 3 (mode is known); [وصل] doesn't require it.
+- `driver.eta`, `pickup.eta`, `meeting.at` are client-chosen times → rules check `is timestamp` only.
+- Labels become a function `statusLabel(status, { open, mode })`; a new `status-6` colour token; all progress bars 7 segments. No stored request is above status 2, so renumbering needs no migration; `mode` appears on 2→3 from the charity's current «تقدر توصّل».
+
 ## Left to the builder
 
 Component structure; time-input control; exact copy of empty/disabled states; how the timeline is laid out on mobile.
