@@ -150,6 +150,15 @@ Fake implementation mirrors the rules, as in phases 1–2.
 - Nominatim usage policy: ≤ 1 request/second, attribution already shown on the map.
 - Everything installs to D:.
 
+## Calls made after the builder check
+
+- **Every request gets a receipt code at creation, open requests included** (tech plan: the code is made when the request is created so the hospital needn't be online later). The request create rule also requires `existsAfter(requestSecrets/{id})`; the open-request success screen shows the code too.
+- **Indexes:** `firebase.json` gains `"indexes": "firestore.indexes.json"`; `npm run deploy` deploys `firestore:rules,firestore:indexes`. Each `fieldOverrides` entry for `stock.itemId` / `stock.orgRole` lists the default COLLECTION-scope ascending, descending and array-contains indexes plus the COLLECTION_GROUP ascending one. The emulator doesn't enforce indexes, so the live check after deploy must run a real ranking.
+- **Charity org reads** are one `getDoc` per charity (a `documentId() in` query would be a list query, which stays admin-only), collected with `Promise.allSettled`; failures are dropped from the ranking.
+- **`watchOne` / `watchCode`** turn permission-denied into `null` ("ما لقينا هذا الطلب").
+- **Nominatim:** at most one call per second (throttle, not debounce), a sequence number so a stale answer never overwrites a newer one, results cached by coordinates rounded to 4 decimals; the default referrer policy stays (browsers can't set User-Agent).
+- **"Only in the request flow"** is a UI promise, not a rule: any approved hospital can technically query charity stock. Accepted.
+
 ## Left to the builder
 
 - Component breakdown, route guarding for charities on hospital-only pages.
