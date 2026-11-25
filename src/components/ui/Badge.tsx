@@ -1,4 +1,6 @@
 import { PRIORITY_LABEL, STATUS_LABEL, type Priority, type RequestStatus } from '../../lib/labels'
+import { CONDITION_LABEL, type Condition } from '../../features/inventory/types'
+import type { OrgRole } from '../../features/orgs/types'
 
 // Literal class strings so Tailwind generates them. Soft tint + colored text + dot.
 const PRIORITY_CLASS: Record<Priority, [string, string]> = {
@@ -36,4 +38,25 @@ export function StatusBadge({ status }: { status: RequestStatus }) {
       {STATUS_LABEL[status]}
     </span>
   )
+}
+
+const CONDITION_CLASS: Record<Condition, [string, string]> = {
+  new: ['bg-primary-light text-primary-dark ring-primary/20', 'bg-primary'],
+  used: ['bg-accent-light text-accent ring-accent/25', 'bg-accent'],
+}
+
+export function ConditionBadge({ condition }: { condition: Condition }) {
+  const [c, dot] = CONDITION_CLASS[condition]
+  return (
+    <span className={`${BASE} ${c}`}>
+      <span className={`size-1.5 rounded-full ${dot}`} aria-hidden />
+      {CONDITION_LABEL[condition]}
+    </span>
+  )
+}
+
+export function RoleBadge({ role }: { role: OrgRole }) {
+  return role === 'hospital'
+    ? <span className={`${BASE} bg-hospital/10 text-hospital ring-hospital/20`}>مستشفى</span>
+    : <span className={`${BASE} bg-charity/10 text-charity ring-charity/20`}>جمعية</span>
 }

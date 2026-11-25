@@ -2,7 +2,11 @@ import { render, screen } from '@testing-library/react'
 import { it, expect } from 'vitest'
 import Button from '../../src/components/ui/Button'
 import Card from '../../src/components/ui/Card'
-import { PriorityBadge, StatusBadge } from '../../src/components/ui/Badge'
+import { ConditionBadge, PriorityBadge, RoleBadge, StatusBadge } from '../../src/components/ui/Badge'
+import Dialog from '../../src/components/ui/Dialog'
+import Stat from '../../src/components/ui/Stat'
+import userEvent from '@testing-library/user-event'
+import { vi } from 'vitest'
 import Alert from '../../src/components/ui/Alert'
 import LtrText from '../../src/components/ui/LtrText'
 import Table from '../../src/components/ui/Table'
@@ -80,4 +84,37 @@ it('Card renders action next to title', () => {
 it('Spinner announces loading', () => {
   render(<Spinner />)
   expect(screen.getByRole('status')).toHaveAccessibleName('جاري التحميل')
+})
+
+it('dialog closes on Escape', async () => {
+  const onClose = vi.fn()
+  render(<Dialog title="إضافة منتج" onClose={onClose} footer={null}><input aria-label="المنتج" /></Dialog>)
+  await userEvent.keyboard('{Escape}')
+  expect(onClose).toHaveBeenCalledTimes(1)
+})
+
+it('dialog is labelled by its title and has a close button', async () => {
+  const onClose = vi.fn()
+  render(<Dialog title="إضافة منتج" sub="المستودع الرئيسي" onClose={onClose} footer={null}>محتوى</Dialog>)
+  expect(screen.getByRole('dialog', { name: 'إضافة منتج' })).toHaveAttribute('aria-modal', 'true')
+  await userEvent.click(screen.getByRole('button', { name: 'إغلاق' }))
+  expect(onClose).toHaveBeenCalled()
+})
+
+it('condition badge reads جديد / مستعمل', () => {
+  render(<><ConditionBadge condition="new" /><ConditionBadge condition="used" /></>)
+  expect(screen.getByText('جديد')).toBeInTheDocument()
+  expect(screen.getByText('مستعمل')).toBeInTheDocument()
+})
+
+it('role badge reads مستشفى / جمعية', () => {
+  render(<><RoleBadge role="hospital" /><RoleBadge role="charity" /></>)
+  expect(screen.getByText('مستشفى')).toBeInTheDocument()
+  expect(screen.getByText('جمعية')).toBeInTheDocument()
+})
+
+it('stat shows its label and value', () => {
+  render(<Stat label="المستودعات" value={2} icon={null} />)
+  expect(screen.getByText('المستودعات')).toBeInTheDocument()
+  expect(screen.getByText('2')).toBeInTheDocument()
 })
