@@ -85,13 +85,4 @@ describe('fake inventory', () => {
     expect(await watch<any[]>(cb => s.inventory.watchWarehouses('h1', cb))()).toEqual([])
   })
 
-  it('watchAllStock lists rows of every org', async () => {
-    const s = make()
-    const wh = await warehouse(s, H)
-    const wc = await warehouse(s, C)
-    await s.inventory.setStock(H, wh, { kind: 'new', name: 'عكازات' }, 'new', 3)
-    await s.inventory.setStock(C, wc, { kind: 'new', name: 'عكازات' }, 'used', 7)
-    const all = await watch<any[]>(cb => s.inventory.watchAllStock(cb))()
-    expect(all.map(r => r.orgId).sort()).toEqual(['c1', 'h1'])
-  })
 })

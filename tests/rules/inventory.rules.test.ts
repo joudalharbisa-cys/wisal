@@ -40,7 +40,14 @@ beforeEach(async () => {
   await seed('orgs/h1', org('hospital', 'مستشفى الملك فهد', 'approved'))
   await seed('orgs/c1', org('charity', 'جمعية البر', 'approved'))
   await seed('orgs/p1', org('charity', 'جمعية تحت المراجعة', 'pending'))
+  await seed('orgs/c2', org('charity', 'جمعية الشمال', 'approved'))
+  await seed('orgs/h2', org('hospital', 'مستشفى الولادة', 'approved'))
+  await seed('orgs/ph', org('hospital', 'مستشفى تحت المراجعة', 'pending'))
 })
+
+const seedCharityWarehouse = () => seed('orgs/c1/warehouses/wc', { ...WH, createdAt: new Date(), updatedAt: new Date() })
+const charityRow = () => storedRow({ orgId: 'c1', orgName: 'جمعية البر', orgRole: 'charity', warehouseId: 'wc' })
+const CSID = `wc__${ITEM}__new`
 
 const seedWarehouse = () => seed('orgs/h1/warehouses/w1', { ...WH, createdAt: new Date(), updatedAt: new Date() })
 const seedItem = (key = ITEM) => seed(`items/${key}`, { name: key, key, createdBy: 'h1', createdAt: new Date() })
@@ -105,13 +112,29 @@ describe('warehouses', () => {
     await seedWarehouse()
     await assertSucceeds(user('h1').doc('orgs/h1/warehouses/w1').delete())
   })
-  it('other approved org reads warehouse', async () => {
+  it('owner reads own warehouses', async () => {
     await seedWarehouse()
-    await assertSucceeds(user('c1').doc('orgs/h1/warehouses/w1').get())
+    await assertSucceeds(user('h1').collection('orgs/h1/warehouses').get())
   })
-  it('pending org cannot read warehouses', async () => {
+  it('hospital reads a charity warehouse (for distance)', async () => {
+    await seedCharityWarehouse()
+    await assertSucceeds(user('h1').doc('orgs/c1/warehouses/wc').get())
+  })
+  it('charity cannot read a hospital warehouse', async () => {
     await seedWarehouse()
-    await assertFails(user('p1').doc('orgs/h1/warehouses/w1').get())
+    await assertFails(user('c1').doc('orgs/h1/warehouses/w1').get())
+  })
+  it('charity cannot read another charity warehouse', async () => {
+    await seedCharityWarehouse()
+    await assertFails(user('c2').doc('orgs/c1/warehouses/wc').get())
+  })
+  it('hospital cannot read another hospital warehouse', async () => {
+    await seedWarehouse()
+    await assertFails(user('h2').doc('orgs/h1/warehouses/w1').get())
+  })
+  it('pending hospital cannot read charity warehouses', async () => {
+    await seedCharityWarehouse()
+    await assertFails(user('ph').doc('orgs/c1/warehouses/wc').get())
   })
 })
 
@@ -194,12 +217,34 @@ describe('stock', () => {
     for (const k of keys) b.update(db.doc(`orgs/h1/stock/w1__${k}__new`), { warehouseName: 'مستودع الشرفية', updatedAt: ts() })
     await assertSucceeds(b.commit())
   })
-  it('approved org reads all stock via collection group', async () => {
+  it('owner reads own stock', async () => {
     await seed(`orgs/h1/stock/${SID}`, storedRow())
-    await assertSucceeds(user('c1').collectionGroup('stock').get())
+    await seed(`orgs/c1/stock/${CSID}`, charityRow())
+    await assertSucceeds(user('h1').collection('orgs/h1/stock').get())
+    await assertSucceeds(user('c1').collection('orgs/c1/stock').get())
   })
-  it('pending org cannot read stock via collection group', async () => {
+  it('hospital reads charity stock across orgs, filtered to charities', async () => {
     await seed(`orgs/h1/stock/${SID}`, storedRow())
-    await assertFails(user('p1').collectionGroup('stock').get())
+    await seed(`orgs/c1/stock/${CSID}`, charityRow())
+    await assertSucceeds(user('h2').collectionGroup('stock').where('orgRole', '==', 'charity').get())
+    await assertSucceeds(user('h2').doc(`orgs/c1/stock/${CSID}`).get())
+  })
+  it('hospital cannot read other hospitals stock', async () => {
+    await seed(`orgs/h1/stock/${SID}`, storedRow())
+    await assertFails(user('h2').collectionGroup('stock').get())
+    await assertFails(user('h2').doc(`orgs/h1/stock/${SID}`).get())
+  })
+  it('charity cannot read hospital stock', async () => {
+    await seed(`orgs/h1/stock/${SID}`, storedRow())
+    await assertFails(user('c1').doc(`orgs/h1/stock/${SID}`).get())
+  })
+  it('charity cannot read other charities stock', async () => {
+    await seed(`orgs/c1/stock/${CSID}`, charityRow())
+    await assertFails(user('c2').collectionGroup('stock').where('orgRole', '==', 'charity').get())
+    await assertFails(user('c2').doc(`orgs/c1/stock/${CSID}`).get())
+  })
+  it('pending hospital cannot read charity stock', async () => {
+    await seed(`orgs/c1/stock/${CSID}`, charityRow())
+    await assertFails(user('ph').collectionGroup('stock').where('orgRole', '==', 'charity').get())
   })
 })

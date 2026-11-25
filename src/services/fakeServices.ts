@@ -14,7 +14,7 @@ type Seed = {
   warehouses?: Record<string, Warehouse[]>
   stock?: StockRow[]
   /** Simulate backend failures in tests. */
-  failures?: { isAdmin?: boolean; watchOrg?: boolean; allStock?: boolean; save?: boolean; inventory?: boolean }
+  failures?: { isAdmin?: boolean; watchOrg?: boolean; save?: boolean; inventory?: boolean }
 }
 
 /** In-memory backend with the same transitions the security rules allow. Used by UI tests and local demos. */
@@ -170,13 +170,6 @@ export function createFakeServices(seed: Seed = {}) {
       },
       watchStock(uid, cb, onError) {
         return listen(() => cb(rowsOf(uid)), onError)
-      },
-      watchAllStock(cb, onError) {
-        if (seed.failures?.allStock) {
-          queueMicrotask(() => onError?.(new ServiceError('network')))
-          return () => {}
-        }
-        return listen(() => cb([...state.stock.values()].filter(r => state.orgs.get(r.orgId)?.status === 'approved')))
       },
       async saveWarehouse(owner, id, draft) {
         mustApproved(owner.uid)

@@ -88,11 +88,6 @@ describe('inventory on the emulator', () => {
     expect(rows).toHaveLength(1)
   }, 20000)
 
-  it('watchAllStock returns rows from both orgs', async () => {
-    const all = await next<StockRow[]>(cb => C.s.inventory.watchAllStock(cb), l => new Set(l.map(r => r.orgId)).size === 2)
-    expect(all.map(r => r.orgId)).toContain(H.me.uid)
-  }, 20000)
-
   it('rename updates rows; delete removes rows', async () => {
     const w = (await next<Warehouse[]>(cb => H.s.inventory.watchWarehouses(H.me.uid, cb), l => l.length > 0))[0]
     await H.s.inventory.saveWarehouse(H.me, w.id, { ...WH, name: 'مستودع الشرفية' })

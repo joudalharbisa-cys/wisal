@@ -105,7 +105,7 @@ export default function MyStock() {
   return (
     <AppShell
       title="مخزوني"
-      sub="الي تضيفه هنا يشوفه المستشفيات والجمعيات المقبولة في وصال"
+      sub={session.org.role === 'charity' ? 'المستشفيات تشوف الكميات المتاحة عندك لما تطلب منتج' : 'مخزونك يظهر لك بس'}
       action={warehouses && warehouses.length > 0 && (
         <Button variant="secondary" className="h-11 px-5" onClick={() => navigate('/app/warehouses/new')}><Plus className="size-4" /> مستودع جديد</Button>
       )}

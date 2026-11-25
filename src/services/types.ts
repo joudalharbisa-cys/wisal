@@ -42,8 +42,6 @@ export interface Services {
     /** Oldest first. */
     watchWarehouses(uid: string, cb: (w: Warehouse[]) => void, onError?: (e: ServiceError) => void): Unsubscribe
     watchStock(uid: string, cb: (rows: StockRow[]) => void, onError?: (e: ServiceError) => void): Unsubscribe
-    /** Every approved org's rows (collection group). */
-    watchAllStock(cb: (rows: StockRow[]) => void, onError?: (e: ServiceError) => void): Unsubscribe
     /** Create (id null) or update; an update also refreshes the warehouse name/city copied onto its rows. Returns the id. */
     saveWarehouse(owner: OrgRef, id: string | null, draft: WarehouseDraft & { location: LatLng }): Promise<string>
     /** Removes the warehouse and its rows together. */

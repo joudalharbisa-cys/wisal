@@ -7,7 +7,6 @@ import {
 } from 'firebase/auth'
 import {
   collection,
-  collectionGroup,
   deleteDoc,
   doc,
   getDoc,
@@ -161,13 +160,6 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
       watchStock(uid, cb, onError) {
         return onSnapshot(
           collection(db(), 'orgs', uid, 'stock'),
-          s => cb(s.docs.map(d => toStockRow(d.id, d.data(snap)))),
-          e => onError?.(toServiceError(e)),
-        )
-      },
-      watchAllStock(cb, onError) {
-        return onSnapshot(
-          collectionGroup(db(), 'stock'),
           s => cb(s.docs.map(d => toStockRow(d.id, d.data(snap)))),
           e => onError?.(toServiceError(e)),
         )

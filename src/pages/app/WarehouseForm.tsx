@@ -136,7 +136,7 @@ export default function WarehouseForm() {
   const center = draft.location ?? (isCity(draft.city) ? CITY_CENTERS[draft.city] : CITY_CENTERS['جدة'])
 
   return (
-    <AppShell title={title} sub="المستشفيات والجمعيات تشوف موقع المستودع عشان تعرف المسافة">
+    <AppShell title={title} sub={org.role === 'charity' ? 'المستشفيات تشوف موقع المستودع عشان تعرف المسافة لما تطلب' : 'حدد مكان المستودع على الخريطة'}>
       <section className={CARD}>
         <div className="grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
           <div className="space-y-5 p-6">

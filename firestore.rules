@@ -8,12 +8,14 @@ service cloud.firestore {
     }
     function isStr(v, min, max) { return v is string && v.size() >= min && v.size() <= max; }
 
-    // Inventory is for approved orgs only (phase 2). Option C: approved orgs read each other's inventory.
-    function isApprovedMember() {
-      return signedIn() && get(/databases/$(database)/documents/orgs/$(request.auth.uid)).data.status == 'approved';
-    }
+    // Inventory is for approved orgs only. Each org sees its own; an approved hospital also sees
+    // charities' stock and warehouses (to choose a charity when it requests). Charities never see hospital stock.
+    function myOrg() { return get(/databases/$(database)/documents/orgs/$(request.auth.uid)).data; }
+    function isApprovedMember() { return signedIn() && myOrg().status == 'approved'; }
+    function isApprovedHospital() { return isApprovedMember() && myOrg().role == 'hospital'; }
     function isOwnerApproved(uid) { return signedIn() && request.auth.uid == uid && isApprovedMember(); }
     function canReadInventory() { return isAdmin() || isApprovedMember(); }
+    function canReadStockRow(row) { return isAdmin() || (isApprovedHospital() && row.orgRole == 'charity'); }
     // Product keys are doc ids and part of stock ids.
     function validKey(k) { return k is string && k.matches('^[^/]+$') && !k.matches('.*__.*'); }
 
@@ -30,9 +32,9 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time;
     }
 
-    // Every stock row, for the shared page and phase 4 ranking (collection-group queries).
+    // Collection-group reads (phase 4 ranking): hospitals query charity rows only (where orgRole == 'charity').
     match /{path=**}/stock/{sid} {
-      allow read: if canReadInventory();
+      allow read: if canReadStockRow(resource.data);
     }
 
     // Wesal admins are added by hand in the console; clients may only check their own entry.
@@ -118,7 +120,9 @@ service cloud.firestore {
             && d.location.lng is number && d.location.lng >= 34 && d.location.lng <= 56
             && d.updatedAt == request.time;
         }
-        allow read: if canReadInventory();
+        // Owner, admin, or an approved hospital looking at a charity's warehouse (distance in phase 4).
+        allow read: if isAdmin() || isOwnerApproved(uid)
+          || (isApprovedHospital() && get(/databases/$(database)/documents/orgs/$(uid)).data.role == 'charity');
         allow create: if isOwnerApproved(uid)
           && validWarehouse(request.resource.data)
           && request.resource.data.createdAt == request.time;
@@ -159,7 +163,7 @@ service cloud.firestore {
             && d.warehouseName == getAfter(wh).data.name && d.city == getAfter(wh).data.city
             && d.updatedAt == request.time;
         }
-        allow read: if canReadInventory();
+        allow read: if isOwnerApproved(uid) || canReadStockRow(resource.data);
         allow create: if isOwnerApproved(uid) && stockCreateOk(request.resource.data);
         allow update: if isOwnerApproved(uid) && stockUpdateOk(request.resource.data);
         // No existsAfter here, so it works in the same batch as a warehouse delete.

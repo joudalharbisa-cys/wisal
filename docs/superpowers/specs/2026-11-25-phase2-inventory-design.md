@@ -4,7 +4,7 @@ Status: approved in conversation 2026-11-25. Tech plan: `../../../../خطة وص
 
 ## Intent
 
-Wesal matches a hospital's need to a charity's stock. Phase 3–5 (requests, ranking, reservation) need real stock data to work on. Phase 2 gives every **approved** organisation (hospital or charity) a place to record what it holds, where, and how much, and lets approved organisations see each other's stock.
+Wesal matches a hospital's need to a charity's stock. Phase 3–5 (requests, ranking, reservation) need real stock data to work on. Phase 2 gives every **approved** organisation (hospital or charity) a place to record what it holds, where, and how much, and prepares charity stock for the hospital's request flow (phase 3–4).
 
 Done when (tech plan): each side adds and edits its stock after approval. Plus, from this conversation: each side can see the other side's stock.
 
@@ -12,7 +12,7 @@ Done when (tech plan): each side adds and edits its stock after approval. Plus, 
 
 | Topic | Decision |
 |---|---|
-| Who sees whose stock | **Option C, provisional:** every approved org sees every approved org's stock. Keep it easy to change later (rules + one page). |
+| Who sees whose stock | **Changed 2026-11-25 (after first deploy):** each org sees only its own stock. Charities never see hospital stock. There is no general shared-stock page; a hospital sees charities' available quantities only inside its request flow (phase 3–4: «الجمعية الفلانية عندها كذا»). Rules already allow exactly that: an approved hospital may read charity stock rows and charity warehouses. |
 | Stock structure | **Warehouses first:** an org defines warehouses (with a map location); stock lives inside a warehouse. |
 | Products | **No fixed limit, any product.** A **shared product list that grows**: type a name, pick an existing match or add a new one, which becomes available to everyone. Warn when a new name is close to an existing one. |
 
@@ -99,11 +99,11 @@ Helpers: `isApprovedMember()` = signed in and `orgs/{auth.uid}.status == 'approv
 - Renaming/moving a warehouse updates its stock rows' `warehouseName`/`city` in the same batch. Deleting a warehouse deletes its stock rows in the same batch (fails if any row has `reserved > 0` — not reachable in phase 2).
 - **Accepted limits (builder's call, see below):** rules can't query, so they can't force a warehouse delete to take its stock with it, and they don't re-run `normalizeName` (they check the key format and `key == doc id`). Only an approved org bypassing the app could leave orphan rows of its own or add an oddly-keyed product; acceptable for the pilot.
 
-Option C lives entirely in the read conditions above; switching to A or B later is a rules + page change only.
+Visibility (as changed 2026-11-25): stock/warehouse reads are owner, admin, or an approved hospital reading a **charity's** rows/warehouses. Collection-group queries from hospitals must filter `where('orgRole','==','charity')`. Charities can't read any other org's inventory.
 
 ## Screens (style B identity, RTL, Western digits)
 
-Navigation for approved members: «مخزوني» (`/app`), «مخزون الجهات» (`/app/network`). Admin nav adds «مخزون الجهات» too.
+Navigation for approved members: «مخزوني» (`/app`). (The «مخزون الجهات» page was built, then removed at the user's request on 2026-11-25.)
 
 1. **مخزوني** (`/app`, replaces the phase 1 empty home)
    - No warehouses: empty state «ابدأ بإضافة أول مستودع» + gold CTA.
@@ -115,8 +115,7 @@ Navigation for approved members: «مخزوني» (`/app`), «مخزون الج�
 3. **Stock dialog** (add / edit) inside مخزوني.
    - Product combobox: typing shows matches from catalogue + seeds; last option «أضف "..." كمنتج جديد»; near-duplicate warning before adding new. Condition: ChoiceGroup جديد / مستعمل. Quantity: number.
    - Editing an existing row: product and condition are fixed (they are the row's identity), only quantity changes. If the user adds a product+condition that already exists in that warehouse, the dialog says so and edits that row's quantity.
-4. **مخزون الجهات** (`/app/network`)
-   - Search by product (same normalisation). Rows grouped by org: org name + role badge (مستشفى / جمعية) + city; under it warehouse name, product, condition, available (`qty − reserved`). Own org shown too, marked «أنت». Read-only. Empty state when nothing matches.
+4. ~~**مخزون الجهات**~~ — removed 2026-11-25 (user: not needed; the hospital sees charity quantities when it requests).
 
 Each phase step 1 (tech plan): these screens get designed on the identity and shown to the user as screenshots before the real wiring is finalised.
 
@@ -127,7 +126,6 @@ inventory: {
   watchItems(cb): Unsubscribe
   watchMyWarehouses(uid, cb): Unsubscribe
   watchMyStock(uid, cb): Unsubscribe
-  watchAllStock(cb): Unsubscribe                     // collection group
   saveWarehouse(uid, id | null, draft): Promise<string>   // batch-updates stock denormals on rename/move
   deleteWarehouse(uid, id): Promise<void>                 // batch-deletes its stock
   upsertStock(org, warehouse, item | newItemName, condition, qty): Promise<void>  // creates item in same batch if needed
@@ -147,8 +145,8 @@ Fake implementation mirrors the rules, as in phase 1.
 ## Calls made after the builder check
 
 - **Rules don't duplicate `normalizeName`.** The app normalises; rules check key format + `key == doc id`. Reason: a full Arabic normaliser in rules would need its own exact-match test suite for little gain in a pilot of approved orgs. Cost if wrong: a misbehaving client could add a near-duplicate product; fixable later by admin tooling.
-- **Warehouse locations are readable by all approved orgs.** Reason: phase 4 ranking runs in the hospital's browser and needs charity warehouse coordinates to compute distance; it also fits option C. Cost if wrong: switching to owner/admin-only read is a one-line rule change, but phase 4 would then need denormalised coarse locations.
-- **`qty == 0` rows:** kept and shown as «نفد» on مخزوني; hidden on مخزون الجهات (and phase 4 filters by available > 0 anyway).
+- **Charity warehouse locations are readable by approved hospitals.** Reason: phase 4 ranking runs in the hospital's browser and needs charity warehouse coordinates to compute distance. Cost if wrong: switching to owner/admin-only read is a one-line rule change, but phase 4 would then need denormalised coarse locations.
+- **`qty == 0` rows:** kept and shown as «نفد» on مخزوني; phase 4 filters by available > 0.
 - **Orphan stock after a client-side warehouse delete:** accepted (see rules section).
 
 ## Left to the builder

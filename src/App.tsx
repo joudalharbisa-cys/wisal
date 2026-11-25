@@ -1,7 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import AdminReview from './pages/admin/AdminReview'
 import MyStock from './pages/app/MyStock'
-import Network from './pages/app/Network'
 import WarehouseForm from './pages/app/WarehouseForm'
 import Login from './pages/auth/Login'
 import Pending from './pages/auth/Pending'
@@ -21,8 +20,6 @@ export default function App() {
         <Route path="/app/warehouses/new" element={<WarehouseForm />} />
         <Route path="/app/warehouses/:id" element={<WarehouseForm />} />
         <Route path="/admin" element={<AdminReview />} />
-        <Route path="/admin/network" element={<Network />} />
-        <Route path="/app/network" element={<Network />} />
         <Route path="*" element={<Navigate to="/app" replace />} />
       </Routes>
     </Guard>

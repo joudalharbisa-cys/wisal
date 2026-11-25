@@ -80,9 +80,26 @@ describe('my stock page', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
-  it('nav shows مخزوني and مخزون الجهات', async () => {
+  it('nav shows مخزوني and no shared stock page', async () => {
     renderAt()
     expect(await screen.findByRole('link', { name: 'مخزوني' })).toHaveAttribute('href', '/app')
-    expect(screen.getByRole('link', { name: 'مخزون الجهات' })).toHaveAttribute('href', '/app/network')
+    expect(screen.queryByRole('link', { name: 'مخزون الجهات' })).not.toBeInTheDocument()
+  })
+
+  it('the old shared stock address leads back to مخزوني', async () => {
+    const s = createFakeServices({ users: [{ uid: 'c1', email: 'c@test.sa', password: 'x' }], orgs: { c1: ORG }, signedIn: 'c1' })
+    render(<ServicesProvider services={s}><MemoryRouter initialEntries={['/app/network']}><App /></MemoryRouter></ServicesProvider>)
+    expect(await screen.findByRole('heading', { name: 'مخزوني' })).toBeInTheDocument()
+  })
+
+  it('charity copy says hospitals see the stock when they request', async () => {
+    renderAt()
+    expect(await screen.findByText('المستشفيات تشوف الكميات المتاحة عندك لما تطلب منتج')).toBeInTheDocument()
+  })
+
+  it('hospital copy says its stock is private', async () => {
+    const s = createFakeServices({ users: [{ uid: 'h1', email: 'h@test.sa', password: 'x' }], orgs: { h1: { ...ORG, role: 'hospital', name: 'مستشفى الملك فهد' } as Org }, signedIn: 'h1' })
+    render(<ServicesProvider services={s}><MemoryRouter initialEntries={['/app']}><App /></MemoryRouter></ServicesProvider>)
+    expect(await screen.findByText('مخزونك يظهر لك بس')).toBeInTheDocument()
   })
 })
