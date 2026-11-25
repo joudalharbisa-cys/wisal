@@ -2,9 +2,11 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { it, expect } from 'vitest'
 import App from '../../src/App'
+import { ServicesProvider } from '../../src/services/ServicesContext'
+import { createFakeServices } from '../../src/services/fakeServices'
 
 it('identity page shows every token and badge', () => {
-  render(<MemoryRouter initialEntries={['/identity']}><App /></MemoryRouter>)
+  render(<ServicesProvider services={createFakeServices()}><MemoryRouter initialEntries={['/identity']}><App /></MemoryRouter></ServicesProvider>)
   for (const t of ['primary', 'accent', 'hospital', 'charity', 'urgent', 'status-5']) expect(screen.getByText(t)).toBeInTheDocument()
   for (const l of ['عاجلة', 'متوسطة', 'عادية']) expect(screen.getByText(l)).toBeInTheDocument()
   expect(screen.getAllByTestId('status-badge')).toHaveLength(6)

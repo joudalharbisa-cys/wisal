@@ -1,9 +1,305 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Deny everything until later phases open specific paths.
-    match /{document=**} {
-      allow read, write: if false;
+
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    function isStr(v, min, max) { return v is string && v.size() >= min && v.size() <= max; }
+
+    // Inventory is for approved orgs only. Each org sees its own; an approved hospital also sees
+    // charities' stock and warehouses (to choose a charity when it requests). Charities never see hospital stock.
+    function myOrg() { return get(/databases/$(database)/documents/orgs/$(request.auth.uid)).data; }
+    function isApprovedMember() { return signedIn() && myOrg().status == 'approved'; }
+    function isApprovedHospital() { return isApprovedMember() && myOrg().role == 'hospital'; }
+    function isApprovedCharity() { return isApprovedMember() && myOrg().role == 'charity'; }
+    function isOwnerApproved(uid) { return signedIn() && request.auth.uid == uid && isApprovedMember(); }
+    function canReadInventory() { return isAdmin() || isApprovedMember(); }
+    function canReadStockRow(row) { return isAdmin() || (isApprovedHospital() && row.orgRole == 'charity'); }
+    // Product keys are doc ids and part of stock ids.
+    function validKey(k) { return k is string && k.matches('^[^/]+$') && !k.matches('.*__.*'); }
+
+    // Shared product catalogue: grows, never edited or deleted by orgs.
+    match /items/{key} {
+      allow read: if canReadInventory();
+      allow create: if isApprovedMember()
+        && request.resource.data.keys().hasOnly(['name', 'key', 'createdBy', 'createdAt'])
+        && request.resource.data.keys().hasAll(['name', 'key', 'createdBy', 'createdAt'])
+        && request.resource.data.key == key
+        && validKey(key)
+        && isStr(request.resource.data.name, 2, 60)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+    }
+
+    // Hospital requests (phase 3+4). One product each; status 0 = open, 1 = sent to a charity.
+    // Created in one batch with requestSecrets/{id} (the 4-digit receipt code only the hospital reads).
+    match /requests/{rid} {
+      function validDelivery(p) {
+        return p is map
+          && p.keys().hasOnly(['lat', 'lng', 'city', 'district', 'details'])
+          && p.keys().hasAll(['lat', 'lng', 'city', 'district', 'details'])
+          && p.lat is number && p.lat >= 16 && p.lat <= 33
+          && p.lng is number && p.lng >= 34 && p.lng <= 56
+          && p.city in ['الرياض', 'جدة', 'مكة المكرمة', 'المدينة المنورة', 'الدمام', 'الطائف', 'أبها', 'تبوك']
+          && isStr(p.district, 1, 60)
+          && isStr(p.details, 0, 100);
+      }
+      function charityOk(d) {
+        let c = get(/databases/$(database)/documents/orgs/$(d.charityId)).data;
+        return d.charityId is string && d.warehouseId is string
+          && c.role == 'charity' && c.status == 'approved' && d.charityName == c.name
+          && exists(/databases/$(database)/documents/orgs/$(d.charityId)/warehouses/$(d.warehouseId));
+      }
+      function validRequest(d) {
+        let required = ['hospitalId', 'hospitalName', 'itemId', 'itemName', 'qty', 'accept', 'priority', 'beneficiaries',
+                        'neededBy', 'delivery', 'status', 'open', 'excluded', 'createdAt', 'updatedAt'];
+        return d.keys().hasAll(required)
+          && d.keys().hasOnly(required.concat(['charityId', 'charityName', 'warehouseId']))
+          && d.hospitalId == request.auth.uid
+          && d.hospitalName == myOrg().name
+          && validKey(d.itemId)
+          && d.itemName == getAfter(/databases/$(database)/documents/items/$(d.itemId)).data.name
+          && d.qty is int && d.qty >= 1 && d.qty <= 99999
+          && d.accept in ['new', 'any']
+          && d.priority in ['urgent', 'medium', 'normal']
+          && d.beneficiaries is int && d.beneficiaries >= 1 && d.beneficiaries <= 1000000
+          && d.neededBy is timestamp
+          && d.open == (d.status == 0)
+          && validDelivery(d.delivery)
+          && d.excluded == []
+          && d.createdAt == request.time && d.updatedAt == request.time
+          && existsAfter(/databases/$(database)/documents/requestSecrets/$(rid))
+          && existsAfter(/databases/$(database)/documents/requestContacts/$(rid))
+          && ((d.status == 0 && !('charityId' in d) && !('charityName' in d) && !('warehouseId' in d))
+              || (d.status == 1 && charityOk(d)));
+      }
+      allow create: if isApprovedHospital() && validRequest(request.resource.data);
+
+      // Readers: the hospital, the charity it's addressed to / accepted by, and any approved charity for open ones.
+      // List queries must filter hospitalId == uid, charityId == uid, or status == 0 && open == true.
+      allow read: if isAdmin() || (signedIn() && (
+        resource.data.hospitalId == request.auth.uid
+        || resource.data.charityId == request.auth.uid
+        || (resource.data.status == 0 && resource.data.open == true && isApprovedCharity())));
+      // Requests created before phase 5 have no `open`; a status-0 one was an open request.
+      // Single-document reads only, so no list query can sweep up status-0 requests without the open filter.
+      allow get: if signedIn() && resource.data.status == 0 && !('open' in resource.data) && isApprovedCharity();
+
+      // Phase 5 transitions (spec: 2026-11-26-phase5-incoming-design.md).
+      function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+      function ownWarehouse(whId) {
+        return whId is string && exists(/databases/$(database)/documents/orgs/$(request.auth.uid)/warehouses/$(whId));
+      }
+      function acceptOk(d) {          // 1 → 2 by the addressed charity
+        return resource.data.status == 1 && resource.data.charityId == request.auth.uid && isApprovedCharity()
+          && d.status == 2 && ownWarehouse(d.warehouseId) && d.reservation is map
+          && d.acceptedAt == request.time && d.updatedAt == request.time
+          && changed().hasOnly(['status', 'warehouseId', 'reservation', 'acceptedAt', 'updatedAt']);
+      }
+      function rejectOk(d) {          // 1 → 0, back to the hospital (not open)
+        return resource.data.status == 1 && resource.data.charityId == request.auth.uid && isApprovedCharity()
+          && d.status == 0 && d.open == false
+          && !('charityId' in d) && !('charityName' in d) && !('warehouseId' in d)
+          && d.excluded == resource.data.excluded.concat([request.auth.uid])
+          && d.lastRejection is map
+          && d.lastRejection.keys().hasOnly(['charityName', 'reason', 'at']) && d.lastRejection.keys().hasAll(['charityName', 'reason', 'at'])
+          && d.lastRejection.charityName == resource.data.charityName
+          && isStr(d.lastRejection.reason, 0, 200) && d.lastRejection.at == request.time
+          && d.updatedAt == request.time
+          && changed().hasOnly(['status', 'open', 'charityId', 'charityName', 'warehouseId', 'excluded', 'lastRejection', 'updatedAt']);
+      }
+      function takeOk(d) {            // 0 (open) → 2 by any approved charity
+        return resource.data.status == 0 && resource.data.get('open', true) == true && isApprovedCharity()
+          && d.status == 2 && d.open == false
+          && d.charityId == request.auth.uid && d.charityName == myOrg().name && ownWarehouse(d.warehouseId)
+          && d.reservation is map && d.acceptedAt == request.time && d.updatedAt == request.time
+          && changed().hasOnly(['status', 'open', 'charityId', 'charityName', 'warehouseId', 'reservation', 'acceptedAt', 'updatedAt', 'lastRejection']);
+      }
+      function chooseAgainOk(d) {     // 0 → 1 by the hospital
+        return resource.data.hospitalId == request.auth.uid && isApprovedHospital()
+          && resource.data.status == 0 && d.status == 1 && d.open == false && charityOk(d)
+          && !('lastRejection' in d) && d.updatedAt == request.time
+          && changed().hasOnly(['status', 'open', 'charityId', 'charityName', 'warehouseId', 'lastRejection', 'updatedAt']);
+      }
+      function publishOk(d) {         // 0 waiting → 0 open by the hospital
+        return resource.data.hospitalId == request.auth.uid && isApprovedHospital()
+          && resource.data.status == 0 && resource.data.open == false
+          && d.status == 0 && d.open == true && !('lastRejection' in d) && d.updatedAt == request.time
+          && changed().hasOnly(['open', 'lastRejection', 'updatedAt']);
+      }
+      allow update: if signedIn() && (acceptOk(request.resource.data) || rejectOk(request.resource.data)
+        || takeOk(request.resource.data) || chooseAgainOk(request.resource.data) || publishOk(request.resource.data));
+    }
+
+    match /requestSecrets/{rid} {
+      allow create: if isApprovedHospital()
+        && request.resource.data.keys().hasOnly(['code', 'hospitalId'])
+        && request.resource.data.keys().hasAll(['code', 'hospitalId'])
+        && request.resource.data.hospitalId == request.auth.uid
+        && request.resource.data.code is string && request.resource.data.code.matches('^[0-9]{4}$')
+        && getAfter(/databases/$(database)/documents/requests/$(rid)).data.hospitalId == request.auth.uid;
+      // The hospital sees its code only once the charity has approved (status ≥ 2). Charities never read it.
+      allow read: if signedIn() && resource.data.hospitalId == request.auth.uid
+        && get(/databases/$(database)/documents/requests/$(rid)).data.status >= 2;
+    }
+
+    // Receiver name/phone, apart from the request: the hospital, and the charity once it has accepted.
+    match /requestContacts/{rid} {
+      allow create: if isApprovedHospital()
+        && request.resource.data.keys().hasOnly(['hospitalId', 'name', 'phone'])
+        && request.resource.data.keys().hasAll(['hospitalId', 'name', 'phone'])
+        && request.resource.data.hospitalId == request.auth.uid
+        && isStr(request.resource.data.name, 2, 60)
+        && request.resource.data.phone is string && request.resource.data.phone.matches('^05[0-9]{8}$')
+        && getAfter(/databases/$(database)/documents/requests/$(rid)).data.hospitalId == request.auth.uid;
+      allow read: if signedIn() && (resource.data.hospitalId == request.auth.uid
+        || (get(/databases/$(database)/documents/requests/$(rid)).data.get('charityId', null) == request.auth.uid
+            && get(/databases/$(database)/documents/requests/$(rid)).data.status >= 2));
+    }
+
+    // Collection-group reads (phase 4 ranking): hospitals query charity rows only (where orgRole == 'charity').
+    match /{path=**}/stock/{sid} {
+      allow read: if canReadStockRow(resource.data);
+    }
+
+    // Wesal admins are added by hand in the console; clients may only check their own entry.
+    match /admins/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+    }
+
+    match /orgs/{uid} {
+      // Shape checks shared by create and resubmit.
+      function validFields(d) {
+        return d.role in ['hospital', 'charity']
+          && isStr(d.name, 2, 100)
+          && isStr(d.city, 2, 40)
+          && isStr(d.district, 1, 60)
+          && isStr(d.licenseNo, 3, 30)
+          && validRoleFields(d);
+      }
+      // Each role carries only its own fields (spec §٥).
+      function validRoleFields(d) {
+        return (d.role == 'hospital'
+                && d.get('hospitalType', null) in ['gov', 'private']
+                && !('workingHours' in d) && !('canDeliver' in d))
+          || (d.role == 'charity'
+                && isStr(d.get('workingHours', null), 1, 100)
+                && d.get('canDeliver', null) is bool
+                && !('hospitalType' in d));
+      }
+      function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['role', 'name', 'city', 'district', 'licenseNo', 'hospitalType',
+                                                 'workingHours', 'canDeliver', 'status', 'contactEmail', 'contract',
+                                                 'createdAt', 'updatedAt'])
+        && validFields(request.resource.data)
+        && request.resource.data.status == 'pending'
+        && request.resource.data.contactEmail == request.auth.token.email
+        && request.resource.data.contract.keys().hasOnly(['version', 'acceptedAt', 'acceptedByName'])
+        && isStr(request.resource.data.contract.version, 1, 20)
+        && isStr(request.resource.data.contract.acceptedByName, 3, 100)
+        && request.resource.data.contract.acceptedAt == request.time
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      // A hospital may read an approved charity's profile (name, canDeliver, workingHours) for the ranking.
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin()
+        || (isApprovedHospital() && resource.data.role == 'charity' && resource.data.status == 'approved'));
+      allow list: if isAdmin();
+
+      // Owner: only a rejected application can be edited, and only back to pending.
+      // rejectReason and review fields stay as the admin left them.
+      allow update: if signedIn() && request.auth.uid == uid
+        && resource.data.status == 'rejected'
+        && request.resource.data.status == 'pending'
+        && changed().hasOnly(['name', 'city', 'district', 'licenseNo', 'hospitalType',
+                              'workingHours', 'canDeliver', 'status', 'updatedAt'])
+        && validFields(request.resource.data)
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.updatedAt == request.time;
+
+      // Admin: review decision on a pending application only; every rejection writes a fresh reason.
+      allow update: if isAdmin()
+        && resource.data.status == 'pending'
+        && changed().hasOnly(['status', 'rejectReason', 'reviewedBy', 'reviewedAt', 'updatedAt'])
+        && request.resource.data.status in ['approved', 'rejected']
+        && (request.resource.data.status == 'approved'
+            || ('rejectReason' in changed() && isStr(request.resource.data.rejectReason, 3, 500)))
+        && request.resource.data.reviewedBy == request.auth.uid
+        && request.resource.data.reviewedAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if false;
+
+      match /warehouses/{whId} {
+        function validWarehouse(d) {
+          return d.keys().hasOnly(['name', 'city', 'district', 'location', 'createdAt', 'updatedAt'])
+            && d.keys().hasAll(['name', 'city', 'district', 'location', 'createdAt', 'updatedAt'])
+            && isStr(d.name, 2, 60)
+            && d.city in ['الرياض', 'جدة', 'مكة المكرمة', 'المدينة المنورة', 'الدمام', 'الطائف', 'أبها', 'تبوك']
+            && isStr(d.district, 1, 60)
+            && d.location is map
+            && d.location.keys().hasOnly(['lat', 'lng'])
+            && d.location.keys().hasAll(['lat', 'lng'])
+            && d.location.lat is number && d.location.lat >= 16 && d.location.lat <= 33
+            && d.location.lng is number && d.location.lng >= 34 && d.location.lng <= 56
+            && d.updatedAt == request.time;
+        }
+        // Owner, admin, or an approved hospital looking at a charity's warehouse (distance in phase 4).
+        allow read: if isAdmin() || isOwnerApproved(uid)
+          || (isApprovedHospital() && get(/databases/$(database)/documents/orgs/$(uid)).data.role == 'charity');
+        allow create: if isOwnerApproved(uid)
+          && validWarehouse(request.resource.data)
+          && request.resource.data.createdAt == request.time;
+        allow update: if isOwnerApproved(uid)
+          && validWarehouse(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isOwnerApproved(uid);
+      }
+
+      // One row per warehouse + product + condition: id = warehouseId__itemId__condition.
+      match /stock/{sid} {
+        function warehousePath(whId) { return /databases/$(database)/documents/orgs/$(uid)/warehouses/$(whId); }
+        function stockCreateOk(d) {
+          let wh = warehousePath(d.warehouseId);
+          let item = /databases/$(database)/documents/items/$(d.itemId);
+          let me = get(/databases/$(database)/documents/orgs/$(uid)).data;
+          return d.keys().hasOnly(['orgId', 'orgName', 'orgRole', 'warehouseId', 'warehouseName', 'city',
+                                   'itemId', 'itemName', 'condition', 'qty', 'reserved', 'updatedAt'])
+            && d.keys().hasAll(['orgId', 'orgName', 'orgRole', 'warehouseId', 'warehouseName', 'city',
+                                'itemId', 'itemName', 'condition', 'qty', 'reserved', 'updatedAt'])
+            && d.orgId == uid
+            && d.warehouseId is string && validKey(d.itemId)
+            && d.condition in ['new', 'used']
+            && sid == d.warehouseId + '__' + d.itemId + '__' + d.condition
+            && existsAfter(wh) && existsAfter(item)
+            && d.orgName == me.name && d.orgRole == me.role
+            && d.warehouseName == getAfter(wh).data.name && d.city == getAfter(wh).data.city
+            && d.itemName == getAfter(item).data.name
+            && d.reserved == 0
+            && d.qty is int && d.qty >= 0 && d.qty <= 99999
+            && d.updatedAt == request.time;
+        }
+        // No item read on update: product and condition are fixed after create (keeps batches under the access limit).
+        function stockUpdateOk(d) {
+          let wh = warehousePath(resource.data.warehouseId);
+          // reserved: held for accepted requests (phase 5); the owner sets it within 0..qty.
+          return d.diff(resource.data).affectedKeys().hasOnly(['qty', 'reserved', 'updatedAt', 'warehouseName', 'city'])
+            && d.qty is int && d.qty <= 99999
+            && d.reserved is int && d.reserved >= 0 && d.reserved <= d.qty
+            && d.warehouseName == getAfter(wh).data.name && d.city == getAfter(wh).data.city
+            && d.updatedAt == request.time;
+        }
+        allow read: if isOwnerApproved(uid) || canReadStockRow(resource.data);
+        allow create: if isOwnerApproved(uid) && stockCreateOk(request.resource.data);
+        allow update: if isOwnerApproved(uid) && stockUpdateOk(request.resource.data);
+        // No existsAfter here, so it works in the same batch as a warehouse delete.
+        allow delete: if isOwnerApproved(uid) && resource.data.reserved == 0;
+      }
     }
   }
 }
