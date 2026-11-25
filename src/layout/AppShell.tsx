@@ -17,7 +17,7 @@ export default function AppShell({ title, sub, action, tall = false, children }:
   let nav: NavItem[] = []
   if (session.kind === 'admin') {
     who = { label: 'إدارة وصال', icon: ShieldCheck }
-    nav = [{ to: '/admin', label: 'طلبات التسجيل' }]
+    nav = [{ to: '/admin', label: 'طلبات التسجيل', end: true }, { to: '/admin/network', label: 'مخزون الجهات' }]
   } else if (session.kind === 'member' && session.org) {
     who = { label: session.org.name, icon: session.org.role === 'charity' ? HandHeart : Building2 }
     if (session.org.status === 'approved') nav = [{ to: '/app', label: 'مخزوني', end: true }, { to: '/app/network', label: 'مخزون الجهات' }]
