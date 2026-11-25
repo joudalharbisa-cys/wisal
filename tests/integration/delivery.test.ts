@@ -75,4 +75,18 @@ describe('delivery journey on the emulator', () => {
     const rows = await next<StockRow[]>(cb => C.s.inventory.watchStock(C.me.uid, cb), l => l[0]?.qty === 10)
     expect(rows[0]).toMatchObject({ qty: 10, reserved: 0 })
   }, 40000)
+
+  it('the right code still closes when the stock rows carry an old warehouse name', async () => {
+    const { id, code } = await H.s.requests.send(H.me, { ...REQ, qty: 5, beneficiaries: 5 }, { charityId: C.me.uid, charityName: C.me.name, warehouseId: C.wh!.id })
+    await next<HospitalRequest | null>(cb => C.s.requests.watchOne(id, cb), r => r?.status === 1)
+    await C.s.requests.accept(C.me, id, C.wh!.id)
+    await C.s.requests.startPreparing(C.me, id, true)
+    await C.s.requests.dispatch(C.me, id, { name: 'فهد العتيبي', phone: '0551112222', eta: new Date(2026, 10, 27, 14, 30) })
+    await C.s.requests.markArrived(C.me, id)
+    // Rows fell out of step with their warehouse (e.g. a rename racing a new row): the verify batch must refresh them.
+    await env.withSecurityRulesDisabled(async ctx => { await ctx.firestore().doc(`orgs/${C.me.uid}/warehouses/${C.wh!.id}`).update({ name: 'المستودع الجديد', city: 'مكة' }) })
+    expect(await C.s.requests.submitCode(C.me, id, code)).toEqual({ result: 'ok', remaining: 4 })
+    const rows = await next<StockRow[]>(cb => C.s.inventory.watchStock(C.me.uid, cb), l => l[0]?.qty === 5)
+    expect(rows[0]).toMatchObject({ qty: 5, reserved: 0, warehouseName: 'المستودع الجديد', city: 'مكة' })
+  }, 40000)
 })

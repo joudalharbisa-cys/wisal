@@ -339,10 +339,14 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
           throw new ServiceError('network')
         }
         const remaining = 5 - (fails + 1)
+        // The rules require stock rows to carry the warehouse's current name/city: rewrite them so a stale row can't block closing.
+        let wh: DocumentData = {}
+        try { wh = (await getDoc(doc(db(), 'orgs', charity.uid, 'warehouses', r.warehouseId ?? ''))).data() ?? {} } catch { throw new ServiceError('network') }
+        const place = typeof wh.name === 'string' && typeof wh.city === 'string' ? { warehouseName: wh.name, city: wh.city } : {}
         const batch = writeBatch(db())
         batch.update(ref, { status: 6, verifiedAt: serverTimestamp(), updatedAt: serverTimestamp() })
         for (const [sid, n] of Object.entries(r.reservation ?? {}))
-          batch.update(doc(db(), 'orgs', charity.uid, 'stock', sid), { qty: increment(-n), reserved: increment(-n), updatedAt: serverTimestamp() })
+          batch.update(doc(db(), 'orgs', charity.uid, 'stock', sid), { qty: increment(-n), reserved: increment(-n), ...place, updatedAt: serverTimestamp() })
         try {
           await batch.commit()
           return { result: 'ok', remaining }
