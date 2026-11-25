@@ -14,14 +14,14 @@ const req = (over: Partial<HospitalRequest> = {}): HospitalRequest => ({
   status: 2, open: false, excluded: [], charityId: 'c1', charityName: 'جمعية البر', warehouseId: 'wa', reservation: {},
   createdAt: new Date(2026, 10, 25, 10), sentAt: new Date(2026, 10, 25, 10), acceptedAt: new Date(2026, 10, 25, 11, 2), updatedAt: new Date(), ...over,
 })
-function renderAt(over: Partial<HospitalRequest> = {}) {
+function renderAt(over: Partial<HospitalRequest> = {}, path = '/app/requests/r1') {
   const s = createFakeServices({
     users: ['h1', 'c1'].map(uid => ({ uid, email: `${uid}@t.sa`, password: 'x' })), signedIn: 'h1',
     orgs: { h1: { role: 'hospital', name: 'مستشفى الملك فهد', status: 'approved' } as Org, c1: { role: 'charity', name: 'جمعية البر', status: 'approved' } as Org },
     warehouses: { c1: [{ id: 'wa', name: 'المستودع الرئيسي', city: 'جدة', district: 'النعيم', location: { lat: 21.572, lng: 39.17 }, createdAt: new Date(), updatedAt: new Date() }] },
     requests: [req(over)], codes: { r1: '4827' }, contacts: { r1: { hospitalId: 'h1', name: 'أحمد الغامدي', phone: '0551234567' } },
   })
-  render(<ServicesProvider services={s}><MemoryRouter initialEntries={['/app/requests/r1']}><App /></MemoryRouter></ServicesProvider>)
+  render(<ServicesProvider services={s}><MemoryRouter initialEntries={[path]}><App /></MemoryRouter></ServicesProvider>)
   return { s, user: userEvent.setup() }
 }
 const DRIVER = { name: 'فهد العتيبي', phone: '0551112222', eta: new Date(2026, 10, 26, 14, 30) }
@@ -78,9 +78,19 @@ describe('hospital tracking', () => {
     expect(await screen.findByText(/اقترحته مستشفى الملك فهد/)).toBeInTheDocument()
   })
 
-  it('a verified request says so', async () => {
-    renderAt({ status: 6, mode: 'delivery', verifiedAt: new Date(2026, 10, 26, 14, 40) })
-    expect(await screen.findByText('تم التحقق من الوصول', { selector: 'p' })).toBeInTheDocument()
+  it('after the code check the hospital just sees «وصل», never «تم التحقق»', async () => {
+    renderAt({ status: 6, mode: 'delivery', preparingAt: new Date(), outAt: new Date(), arrivedAt: new Date(2026, 10, 26, 14, 34), verifiedAt: new Date(2026, 10, 26, 14, 40) })
+    expect(await screen.findByText('وصل', { selector: '[data-testid="status-badge"]' })).toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/تحقق/)
     expect(screen.queryByRole('button', { name: 'اقترح اجتماع' })).not.toBeInTheDocument()
+  })
+
+  it('the list shows «وصل» and a 6-step bar for a verified request', async () => {
+    renderAt({ status: 6, mode: 'delivery', arrivedAt: new Date(2026, 10, 26, 14, 34), verifiedAt: new Date(2026, 10, 26, 14, 40) }, '/app')
+    const row = within(await screen.findByRole('list', { name: 'طلباتي' })).getByRole('listitem')
+    expect(row).toHaveTextContent('وصل')
+    expect(row).toHaveTextContent('26 نوفمبر · 2:34 م')
+    expect(row.textContent).not.toMatch(/تحقق/)
+    expect(row.querySelectorAll('[class~="h-1.5"]')).toHaveLength(6)
   })
 })

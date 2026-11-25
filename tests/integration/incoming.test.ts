@@ -58,12 +58,13 @@ beforeAll(async () => {
 afterAll(async () => { await env?.cleanup() })
 
 describe('incoming requests on the emulator', () => {
-  it('accept reserves stock and reveals the code and contact', async () => {
+  it('accept reserves stock and reveals the contact (the code waits for dispatch)', async () => {
     const { id, code } = await H.s.requests.send(H.me, REQ, { charityId: C1.me.uid, charityName: C1.me.name, warehouseId: C1.wh!.id })
     await next<HospitalRequest[]>(cb => C1.s.requests.watchIncoming(C1.me.uid, cb), l => l.some(r => r.id === id))
     await C1.s.requests.accept(C1.me, id, C1.wh!.id)
     expect(await next<number>(cb => C1.s.inventory.watchStock(C1.me.uid, r => cb(r[0]?.reserved ?? -1)), n => n === 40)).toBe(40)
-    expect(await next<string | null>(cb => H.s.requests.watchCode(id, cb), x => !!x)).toBe(code)
+    expect(await next<string | null>(cb => H.s.requests.watchCode(id, cb), x => x === null)).toBeNull()
+    expect(code).toMatch(/^\d{4}$/)
     expect(await next(cb => C1.s.requests.watchContact(id, cb), x => !!x)).toEqual({ name: 'أحمد الغامدي', phone: '0551234567' })
   }, 30000)
 

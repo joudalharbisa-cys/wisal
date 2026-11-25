@@ -101,15 +101,21 @@ describe('my requests', () => {
     expect(await screen.findByRole('heading', { name: 'طلب جديد' })).toBeInTheDocument()
   })
 
-  it('details show the receipt code once approved', async () => {
+  it('details show the receipt code once out for delivery, not at approval', async () => {
     renderAt('/app/requests/r4', { requests: [...REQS, req('r4', { status: 2 })], codes: { r4: '7310' } })
+    expect(await screen.findByText('يظهر رمز الاستلام هنا لما يطلع الطلب للتوصيل')).toBeInTheDocument()
+    expect(screen.queryByText('7310')).not.toBeInTheDocument()
+  })
+
+  it('details show the receipt code when out for delivery', async () => {
+    renderAt('/app/requests/r4', { requests: [...REQS, req('r4', { status: 4, mode: 'delivery' })], codes: { r4: '7310' } })
     expect(await screen.findByText('7310')).toHaveAttribute('aria-label', 'رمز الاستلام')
   })
 
   it('details show fields and hide the code before approval', async () => {
     renderAt('/app/requests/r1')
     expect(await screen.findByRole('heading', { name: 'كراسي متحركة · 40' })).toBeInTheDocument()
-    expect(await screen.findByText('يظهر رمز الاستلام هنا بعد موافقة الجمعية')).toBeInTheDocument()
+    expect(await screen.findByText('يظهر رمز الاستلام هنا لما يطلع الطلب للتوصيل')).toBeInTheDocument()
     expect(screen.queryByText('4827')).not.toBeInTheDocument()
     for (const t of ['جمعية الشمال', 'أحمد الغامدي', 'جديد او مستعمل', 'جدة، الشرفية · البوابة 3']) expect(screen.getByText(t)).toBeInTheDocument()
     expect(screen.getAllByText('بانتظار موافقة الجمعية').length).toBeGreaterThan(0)

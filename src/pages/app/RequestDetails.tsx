@@ -4,7 +4,7 @@ import { ArrowRight, CalendarDays, CheckCircle2, CircleAlert, HandHeart, RotateC
 import Alert from '../../components/ui/Alert'
 import { PriorityBadge } from '../../components/ui/Badge'
 import Spinner from '../../components/ui/Spinner'
-import { STATUS_SHORT, type RequestStatus } from '../../lib/labels'
+import { hospitalStatus, STATUS_SHORT, type RequestStatus } from '../../lib/labels'
 import { longDate, RequestStatusBadge } from '../../features/requests/RequestStatus'
 import { ACCEPT_LABEL, type Contact, type HospitalRequest, type Ranked, type Rejection } from '../../features/requests/types'
 import { rankCharities } from '../../features/requests/rank'
@@ -47,9 +47,9 @@ export default function RequestDetails() {
   useEffect(() => requests.watchOne(id, setR, () => setFailed(true)), [requests, id])
   useEffect(() => requests.watchContact(id, setContact), [requests, id])
   useEffect(() => requests.watchRejection(id, setPastRejection), [requests, id])
-  // The code is readable only after approval; start listening when the status gets there.
-  const approved = !!r && r.status >= 2
-  useEffect(() => (approved ? requests.watchCode(id, setCode, () => setFailed(true)) : undefined), [requests, id, approved])
+  // The code is readable once the request is out for delivery / ready for pickup; start listening when it gets there.
+  const codeVisible = !!r && r.status >= 4
+  useEffect(() => (codeVisible ? requests.watchCode(id, setCode, () => setFailed(true)) : undefined), [requests, id, codeVisible])
 
   if (failed) return <AppShell title="تفاصيل الطلب"><Alert tone="danger">تعذّر تحميل الطلب، حاول مرة ثانية</Alert></AppShell>
   if (r === undefined) return <AppShell title="تفاصيل الطلب"><div className="grid place-items-center rounded-card bg-white p-12 text-primary"><Spinner className="size-7" /></div></AppShell>
@@ -129,13 +129,13 @@ export default function RequestDetails() {
             </section>
           )}
           <section className={`${CARD} p-6`}>
-            <div className="flex items-center justify-between"><h2 className="font-bold">حالة الطلب</h2><RequestStatusBadge status={r.status} open={r.open} mode={r.mode} /></div>
+            <div className="flex items-center justify-between"><h2 className="font-bold">حالة الطلب</h2><RequestStatusBadge status={r.status} open={r.open} mode={r.mode} hospital /></div>
             {r.status === 0 && r.open && <p className="mt-2 text-sm text-muted">طلب مفتوح، أي جمعية عندها الكمية تقدر تقبله.</p>}
-            <ol className="mt-6 grid grid-cols-7 gap-1">
-              {([0, 1, 2, 3, 4, 5, 6] as RequestStatus[]).map(i => (
-                <li key={i} className="text-center" aria-current={i === r.status ? 'step' : undefined}>
-                  <span className={`block h-1.5 rounded-full ${i <= r.status ? 'bg-primary' : 'bg-line'}`} />
-                  <span className={`mt-2 block text-[11px] ${i === r.status ? 'font-bold text-primary' : 'text-muted'}`}>{STATUS_SHORT[i]}</span>
+            <ol className="mt-6 grid grid-cols-6 gap-1">
+              {([0, 1, 2, 3, 4, 5] as RequestStatus[]).map(i => (
+                <li key={i} className="text-center" aria-current={i === hospitalStatus(r.status) ? 'step' : undefined}>
+                  <span className={`block h-1.5 rounded-full ${i <= hospitalStatus(r.status) ? 'bg-primary' : 'bg-line'}`} />
+                  <span className={`mt-2 block text-[11px] ${i === hospitalStatus(r.status) ? 'font-bold text-primary' : 'text-muted'}`}>{STATUS_SHORT[i]}</span>
                 </li>
               ))}
             </ol>
@@ -163,15 +163,15 @@ export default function RequestDetails() {
           {r.status === 6 ? (
             <div className="mt-4 flex items-start gap-3 rounded-control bg-normal/10 p-3.5 text-start text-sm">
               <CheckCircle2 className="size-5 shrink-0 text-normal" aria-hidden />
-              <div><p className="font-bold">تم التحقق من الوصول</p><span className="text-xs text-muted">الجمعية كتبت الرمز الصحيح والطلب مكتمل.</span></div>
+              <div><p className="font-bold">وصل الطلب</p><span className="text-xs text-muted">تم تسليم الطلب للمستلم.</span></div>
             </div>
-          ) : r.status >= 2 ? (
+          ) : r.status >= 4 ? (
             <>
               <div dir="ltr" aria-label="رمز الاستلام" className="mx-auto mt-4 w-fit rounded-card border-2 border-dashed border-accent/50 bg-accent-light px-6 py-3 text-4xl font-bold tracking-[0.4em] tabular-nums">{code ?? '····'}</div>
               <p className="mt-3 text-xs text-muted">{r.mode === 'pickup' ? 'اعطِ الرمز لمندوبك قبل ما يروح، والجمعية تكتبه لما يستلم.' : 'اعطِه للمندوب عند الاستلام بس. الجمعية ما تشوف هذا الرمز.'}</p>
             </>
           ) : (
-            <p className="mt-3 text-sm text-muted">يظهر رمز الاستلام هنا بعد موافقة الجمعية</p>
+            <p className="mt-3 text-sm text-muted">{r.mode === 'pickup' ? 'يظهر رمز الاستلام هنا لما يكون الطلب جاهز للاستلام' : 'يظهر رمز الاستلام هنا لما يطلع الطلب للتوصيل'}</p>
           )}
         </section>
         {hospital && <HospitalDelivery r={r} me={hospital} />}

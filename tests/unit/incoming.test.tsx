@@ -46,7 +46,7 @@ describe('charity incoming requests', () => {
     expect(await screen.findByRole('link', { name: /^الطلبات الواردة\s*1$/ })).toHaveAttribute('href', '/app')
   })
 
-  it('tabs list addressed, open (coverable only) and accepted requests', async () => {
+  it('tabs list addressed, all open (uncoverable marked, last) and accepted requests', async () => {
     const user = renderAt()
     await screen.findByRole('tabpanel')
     expect(await within(list()).findByText(/كراسي متحركة/)).toBeInTheDocument()
@@ -55,7 +55,11 @@ describe('charity incoming requests', () => {
     expect(within(list()).getByRole('link')).toHaveAttribute('href', '/app/incoming/r1')
     await user.click(screen.getByRole('tab', { name: /مفتوحة/ }))
     expect(await within(list()).findByText(/كراسي للمفتوح/)).toBeInTheDocument()
-    expect(within(list()).queryByText(/طلب كبير/)).not.toBeInTheDocument()
+    // Every open request shows; the ones its stock can't cover say so and come after.
+    const rows = within(list()).getAllByRole('listitem')
+    expect(rows.map(x => x.textContent?.includes('طلب كبير'))).toEqual([false, true])
+    expect(rows[1]).toHaveTextContent('ما عندك كمية تكفي في مخزونك')
+    expect(rows[0]).not.toHaveTextContent('ما عندك كمية تكفي')
     expect(within(list()).queryByText(/مرفوض ينتظر المستشفى/)).not.toBeInTheDocument()
     await user.click(screen.getByRole('tab', { name: /قبلتها/ }))
     expect(await within(list()).findByText(/طلب مقبول/)).toBeInTheDocument()

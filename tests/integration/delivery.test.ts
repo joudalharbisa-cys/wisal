@@ -62,7 +62,9 @@ describe('delivery journey on the emulator', () => {
     await C.s.requests.accept(C.me, id, C.wh!.id)
     await C.s.requests.setMeeting(C.me, id, { at: new Date(2026, 10, 27, 9), link: 'https://meet.google.com/abc-defg-hij' })
     await C.s.requests.startPreparing(C.me, id, true)
+    expect(await next<string | null>(cb => H.s.requests.watchCode(id, cb), x => x === null)).toBeNull() // not yet while preparing
     await C.s.requests.dispatch(C.me, id, { name: 'فهد العتيبي', phone: '0551112222', eta: new Date(2026, 10, 27, 14, 30) })
+    expect(await next<string | null>(cb => H.s.requests.watchCode(id, cb), x => !!x)).toBe(code) // out for delivery: the hospital sees it
     await C.s.requests.markArrived(C.me, id)
     const seen = await next<HospitalRequest | null>(cb => H.s.requests.watchOne(id, cb), r => r?.status === 5)
     expect(seen).toMatchObject({ mode: 'delivery', driver: { name: 'فهد العتيبي' }, meeting: { byRole: 'charity' } })

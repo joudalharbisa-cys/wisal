@@ -8,8 +8,10 @@ export const PRIORITY_LABEL: Record<Priority, string> = {
   normal: 'عادية',
 }
 
-/** The 7 request steps (phase 6). Status 0 depends on `open`; status 4 on the delivery mode. */
-export function statusLabel(status: RequestStatus, o: { open?: boolean; mode?: DeliveryMode } = {}): string {
+/** The 7 request steps (phase 6). Status 0 depends on `open`; status 4 on the delivery mode.
+ *  The hospital never sees the code-check step: for it, arrival and after both read «وصل». */
+export function statusLabel(status: RequestStatus, o: { open?: boolean; mode?: DeliveryMode; hospital?: boolean } = {}): string {
+  if (o.hospital && status >= 5) return 'وصل'
   switch (status) {
     case 0: return o.open === false ? 'بانتظار قرارك' : 'طلب مفتوح'
     case 1: return 'بانتظار موافقة الجمعية'
@@ -20,6 +22,9 @@ export function statusLabel(status: RequestStatus, o: { open?: boolean; mode?: D
     case 6: return 'تم التحقق من الوصول'
   }
 }
+
+/** What the hospital is shown: the code check (status 6) stays at «وصل» (5). */
+export const hospitalStatus = (s: RequestStatus): RequestStatus => (s > 5 ? 5 : s)
 
 export const STATUS_SHORT: Record<RequestStatus, string> = {
   0: 'بانتظار',

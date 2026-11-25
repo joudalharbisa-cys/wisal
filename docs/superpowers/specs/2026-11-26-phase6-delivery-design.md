@@ -109,3 +109,10 @@ Spark, client batches/transactions, Western digits (time pickers must show Weste
 ## Left to the builder
 
 Component structure; time-input control; exact copy of empty/disabled states; how the timeline is laid out on mobile.
+
+## Changes after release (user feedback, 2026-11-25)
+
+- The receipt code reaches the hospital only once the request is out for delivery / ready for pickup (status ≥ 4; rules on `requestSecrets`), not at approval. The «تم إرسال الطلب» screen no longer mentions the code.
+- The hospital never sees the code-check step: its badge, progress bar (6 steps) and timeline stop at «وصل»; status 6 reads «وصل» for it. The charity keeps all 7 steps.
+- Charities see every open request; those no single own warehouse can cover carry «ما عندك كمية تكفي في مخزونك» and come last (accepting stays disabled for them).
+

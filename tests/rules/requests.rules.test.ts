@@ -115,9 +115,13 @@ describe('reading requests', () => {
     await assertSucceeds(user('h1').doc('requests/r1').get())
     await assertFails(user('h1').doc('requestSecrets/r1').get())
   })
-  it('owner reads the code once the charity approved', async () => {
-    await seed('requests/r1', stored({ status: 2 }))
+  it('owner reads the code only once the request is out for delivery (or ready for pickup)', async () => {
     await seed('requestSecrets/r1', { code: '4827', hospitalId: 'h1' })
+    for (const status of [2, 3]) {
+      await seed('requests/r1', stored({ status }))
+      await assertFails(user('h1').doc('requestSecrets/r1').get())
+    }
+    await seed('requests/r1', stored({ status: 4 }))
     await assertSucceeds(user('h1').doc('requestSecrets/r1').get())
   })
   it('other hospital cannot read request or code', async () => {

@@ -412,8 +412,8 @@ export function createFakeServices(seed: Seed = {}) {
         return listenReq(() => { const h = state.history.get(id); cb(h && h.hospitalId === state.current?.uid ? h.lastRejection : null) })
       },
       watchCode(id, cb, onError) {
-        // Like the rules: the code is readable only after the charity approved (status ≥ 2).
-        return listenReq(() => { const r = mineOrNull(id); cb(r && r.status >= 2 ? state.codes.get(id) ?? null : null) }, onError)
+        // Like the rules: the code is readable only once out for delivery / ready for pickup (status ≥ 4).
+        return listenReq(() => { const r = mineOrNull(id); cb(r && r.status >= 4 ? state.codes.get(id) ?? null : null) }, onError)
       },
       watchContact(id, cb, onError) {
         return listenReq(() => {

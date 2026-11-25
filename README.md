@@ -94,7 +94,8 @@
 
 - Statuses are now 7: طلب مفتوح / بانتظار قرارك → بانتظار موافقة الجمعية → تمت الموافقة → تجهيز الطلب → قيد التوصيل (or جاهز للاستلام) → وصل، بانتظار الرمز → تم التحقق من الوصول.
 - Charity (`/app/incoming/:id`): [بدأنا التجهيز] → driver name, mobile and expected time → [طلع للتوصيل] → [وصل] → types the receipt code. A charity that can't deliver gets [جاهز للاستلام] and the hospital sends its own courier.
-- Hospital (`/app/requests/:id`): dated timeline of every step, the driver, a courier form for pickups, and [افتح إدخال الرمز] after 5 wrong codes.
+- Hospital (`/app/requests/:id`): dated timeline of every step up to «وصل» (the code check is the charity's step only), the driver, a courier form for pickups, the receipt code once the request is out for delivery / ready for pickup, and [افتح إدخال الرمز] after 5 wrong codes.
+- Charities see every open request; ones their stock can't cover are marked «ما عندك كمية تكفي في مخزونك».
 - The code check is enforced by the rules: every attempt is stored and counted first (max 5), closing needs the stored attempt to match `requestSecrets`, and the same batch must deduct the reserved stock (`qty` and `reserved` fall by the reserved amount).
 - Either side may add an optional meeting (date, time and an https link) while the request is between تمت الموافقة and وصل.
 - Lists show the latest step with its date and time.

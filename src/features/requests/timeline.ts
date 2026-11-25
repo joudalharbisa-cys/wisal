@@ -48,8 +48,9 @@ export function buildTimeline(r: HospitalRequest, viewer: Viewer): Step[] {
     { label: 'بدأ التجهيز', at: r.preparingAt },
     { label: pickup ? 'جاهز للاستلام' : r.mode ? 'طلع للتوصيل' : 'التوصيل او الاستلام', at: r.outAt, note: outNote || undefined },
     { label: pickup ? 'وصل مندوب المستشفى' : 'وصل', at: r.arrivedAt },
-    { label: 'تم التحقق', at: r.verifiedAt },
   )
+  // The code check is the charity's step; the hospital's journey ends at arrival.
+  if (viewer === 'charity') steps.push({ label: 'تم التحقق', at: r.verifiedAt })
   return steps
 }
 

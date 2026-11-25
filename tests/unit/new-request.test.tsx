@@ -82,8 +82,7 @@ describe('new request', () => {
     await user.click(screen.getByRole('button', { name: 'اختر جمعية البر بجدة' }))
     await user.click(screen.getByRole('button', { name: 'أرسل الطلب لـجمعية البر بجدة' }))
     expect(await screen.findByRole('heading', { name: 'وصل طلبك لـجمعية البر بجدة' })).toBeInTheDocument()
-    expect(screen.getByText('رمز الاستلام يظهر لك بعد موافقة الجمعية')).toBeInTheDocument()
-    expect(screen.queryByLabelText('رمز الاستلام')).not.toBeInTheDocument()
+    expect(screen.queryByText(/رمز الاستلام/)).not.toBeInTheDocument()
     const [r] = [...s._state.requests.values()]
     expect(r).toMatchObject({ status: 1, charityId: 'c1', warehouseId: 'w1', qty: 40, priority: 'urgent', open: false, delivery: { district: 'الشرفية' } })
     expect([...s._state.contacts.values()][0]).toEqual({ hospitalId: 'h1', name: 'أحمد الغامدي', phone: '0551234567' })

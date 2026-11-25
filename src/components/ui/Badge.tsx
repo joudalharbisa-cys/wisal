@@ -31,13 +31,13 @@ export function PriorityBadge({ priority }: { priority: Priority }) {
   )
 }
 
-export function StatusBadge({ status, open, mode }: { status: RequestStatus; open?: boolean; mode?: DeliveryMode }) {
+export function StatusBadge({ status, open, mode, hospital }: { status: RequestStatus; open?: boolean; mode?: DeliveryMode; hospital?: boolean }) {
   // Status 0 waiting for the hospital's decision reads in the medium (orange) tone.
   const [c, dot] = status === 0 && open === false ? ['bg-[#FFF1E6] text-medium ring-medium/30', 'bg-medium'] : STATUS_CLASS[status]
   return (
     <span data-testid="status-badge" className={`${BASE} ${c}`}>
       <span className={`size-1.5 rounded-full ${dot}`} aria-hidden />
-      {statusLabel(status, { open, mode })}
+      {statusLabel(status, { open, mode, hospital })}
     </span>
   )
 }

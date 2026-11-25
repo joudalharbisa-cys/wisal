@@ -45,10 +45,12 @@ describe('fake requests', () => {
     expect(await watch<string | null>(cb => s.requests.watchCode(id, cb))()).toBeNull()
   })
 
-  it('the code shows only after the charity approved', async () => {
+  it('the code shows only once the request is out for delivery', async () => {
     const s = make()
     const { id, code } = await s.requests.send(H, REQ, { charityId: 'c1', charityName: 'جمعية البر', warehouseId: 'wc' })
     s._state.requests.set(id, { ...s._state.requests.get(id)!, status: 2 })
+    expect(await watch<string | null>(cb => s.requests.watchCode(id, cb))()).toBeNull()
+    s._state.requests.set(id, { ...s._state.requests.get(id)!, status: 4 })
     expect(await watch<string | null>(cb => s.requests.watchCode(id, cb))()).toBe(code)
   })
 

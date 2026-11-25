@@ -162,7 +162,7 @@ export default function IncomingRequest() {
               ) : (
                 <div className="mt-4"><Alert tone="warning">الكمية ما تكفي في مستودعاتك الحين</Alert></div>
               )}
-              <p className="mt-3 text-xs text-muted">بعد القبول تظهر لك بيانات المستلم، والمستشفى يشوف رمز الاستلام.</p>
+              <p className="mt-3 text-xs text-muted">بعد القبول تظهر لك بيانات المستلم.</p>
               {error && <div className="mt-3"><Alert tone="danger">{error}</Alert></div>}
               {sent && (
                 <div className="mt-5 grid grid-cols-2 gap-3">

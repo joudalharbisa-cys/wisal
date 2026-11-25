@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { ArrowRight, CheckCircle2, Crosshair, Eye, KeyRound, MapPin, Package, Plus, Send, Sparkles } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Crosshair, Eye, MapPin, Package, Plus, Send, Sparkles } from 'lucide-react'
 import Alert from '../../components/ui/Alert'
 import { PriorityBadge } from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -193,10 +193,6 @@ export default function NewRequest() {
           <span className="mx-auto grid size-16 place-items-center rounded-full bg-normal/10 text-normal"><CheckCircle2 className="size-9" /></span>
           <h2 className="mt-5 text-xl font-bold">{sent.charityName ? `وصل طلبك لـ${sent.charityName}` : 'انتشر طلبك كطلب مفتوح'}</h2>
           <p className="mt-1.5 text-sm text-muted">{valid && `${valid.qty} · ${valid.item.kind === 'existing' ? valid.item.item.name : valid.item.name}`} · {sent.charityName ? 'بانتظار موافقة الجمعية' : 'أي جمعية عندها الكمية تقدر تقبله'}</p>
-          <div className="mx-auto mt-7 flex max-w-sm items-center gap-3 rounded-card border border-dashed border-accent/50 bg-accent-light px-5 py-4 text-start">
-            <KeyRound className="size-6 shrink-0 text-accent" aria-hidden />
-            <p className="text-sm">رمز الاستلام يظهر لك بعد موافقة الجمعية<span className="block text-xs text-muted">تلقاه في تفاصيل الطلب، وتعطيه للمندوب عند الاستلام.</span></p>
-          </div>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button variant="outline" onClick={() => navigate(`/app/requests/${sent.id}`)}><Eye className="size-4" /> اعرض الطلب</Button>
             <Button variant="secondary" onClick={another}><Plus className="size-4" /> اطلب منتج ثاني</Button>

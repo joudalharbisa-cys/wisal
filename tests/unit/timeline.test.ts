@@ -15,7 +15,8 @@ describe('timeline', () => {
   it('delivery journey for the hospital, future steps without a time', () => {
     const r = base({ status: 4, mode: 'delivery', acceptedAt: t(25, 11, 2), preparingAt: t(26, 8, 15), outAt: t(26, 13, 40), driver: { name: 'فهد العتيبي', phone: '0551112222', eta: t(26, 14, 30) } })
     const s = buildTimeline(r, 'hospital')
-    expect(labels(s)).toEqual(['أُرسل لجمعية البر', 'تمت الموافقة', 'بدأ التجهيز', 'طلع للتوصيل', 'وصل', 'تم التحقق'])
+    expect(labels(s)).toEqual(['أُرسل لجمعية البر', 'تمت الموافقة', 'بدأ التجهيز', 'طلع للتوصيل', 'وصل'])
+    expect(labels(buildTimeline(r, 'charity')).at(-1)).toBe('تم التحقق') // only the charity sees the code step
     expect(done(s)).toBe(4)
     expect(s[3].note).toContain('فهد العتيبي')
     expect(s[3].note).toContain('0551112222')

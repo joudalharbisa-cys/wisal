@@ -17,6 +17,12 @@ it('status labels follow the 7 steps, by open flag and delivery mode', () => {
   expect(statusLabel(6)).toBe('تم التحقق من الوصول')
 })
 
+it('the hospital never sees the verification step: arrival and after both read «وصل»', () => {
+  expect(statusLabel(5, { hospital: true })).toBe('وصل')
+  expect(statusLabel(6, { hospital: true })).toBe('وصل')
+  expect(statusLabel(4, { hospital: true, mode: 'delivery' })).toBe('قيد التوصيل')
+})
+
 it('short status labels follow status order', () => {
   expect(Object.values(STATUS_SHORT)).toEqual(['بانتظار', 'مطابقة', 'موافقة', 'تجهيز', 'توصيل', 'وصول', 'تحقق'])
 })

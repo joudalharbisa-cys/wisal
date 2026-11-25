@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Building2, CalendarDays, ChevronLeft, Clock, MapPin } from 'lucide-react'
+import { Building2, CalendarDays, ChevronLeft, CircleAlert, Clock, MapPin } from 'lucide-react'
 import Alert from '../../components/ui/Alert'
 import { PriorityBadge } from '../../components/ui/Badge'
 import Spinner from '../../components/ui/Spinner'
@@ -16,9 +16,9 @@ import { useCurrentSession } from '../../session/Guard'
 
 const CARD = 'rounded-card border border-line bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]'
 type Tab = 'mine' | 'open' | 'accepted'
-const EMPTY: Record<Tab, string> = { mine: 'ما فيه طلبات تنتظر ردك', open: 'ما فيه طلبات مفتوحة تقدر تغطيها', accepted: 'ما قبلت طلبات للحين' }
+const EMPTY: Record<Tab, string> = { mine: 'ما فيه طلبات تنتظر ردك', open: 'ما فيه طلبات مفتوحة للحين', accepted: 'ما قبلت طلبات للحين' }
 
-function Row({ r, km }: { r: HospitalRequest; km: number | null }) {
+function Row({ r, km, short }: { r: HospitalRequest; km: number | null; short?: boolean }) {
   const last = r.status >= 2 ? latestStep(r, 'charity') : undefined
   return (
     <li>
@@ -32,6 +32,7 @@ function Row({ r, km }: { r: HospitalRequest; km: number | null }) {
             {km !== null && <span className="flex items-center gap-1"><MapPin className="size-3.5" aria-hidden /><span className="tabular-nums">{formatKm(km)}</span> كم من مستودعك</span>}
             {last?.at && <span className="flex items-center gap-1"><Clock className="size-3.5" aria-hidden />{last.label} <span className="tabular-nums">{formatDateTime(last.at)}</span></span>}
           </div>
+          {short && <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[#FFF1E6] px-2.5 py-0.5 text-xs font-medium text-medium"><CircleAlert className="size-3.5" aria-hidden />ما عندك كمية تكفي في مخزونك</span>}
         </div>
         <RequestStatusBadge status={r.status} open={r.open} mode={r.mode} />
         <ChevronLeft className="size-5 text-muted" aria-hidden />
@@ -71,15 +72,17 @@ export default function Incoming() {
   }
   const waiting = (mine ?? []).filter(r => r.status === 1)
   const accepted = (mine ?? []).filter(r => r.status >= 2)
-  // Open requests this charity can cover from one of its warehouses (same rule as the hospital's ranking).
-  const coverable = open.flatMap(r => { const b = bestWarehouse(r, warehouses, rows); return b ? [{ r, km: b.distanceKm }] : [] })
+  // Every open request; the ones no single own warehouse can cover (same rule as the hospital's ranking) are marked and listed last.
+  const openRows = open
+    .map(r => { const b = bestWarehouse(r, warehouses, rows); return b ? { r, km: b.distanceKm, short: false } : { r, km: whKm(r), short: true } })
+    .sort((a, b) => Number(a.short) - Number(b.short))
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: 'mine', label: 'لك', count: waiting.length },
-    { key: 'open', label: 'مفتوحة', count: coverable.length },
+    { key: 'open', label: 'مفتوحة', count: openRows.length },
     { key: 'accepted', label: 'قبلتها' },
   ]
-  const shown = tab === 'mine' ? waiting.map(r => ({ r, km: whKm(r) })) : tab === 'open' ? coverable : accepted.map(r => ({ r, km: whKm(r) }))
+  const shown: { r: HospitalRequest; km: number | null; short?: boolean }[] = tab === 'mine' ? waiting.map(r => ({ r, km: whKm(r) })) : tab === 'open' ? openRows : accepted.map(r => ({ r, km: whKm(r) }))
 
   return (
     <AppShell title="الطلبات الواردة" sub="طلبات المستشفيات الي تنتظر ردك">
@@ -102,7 +105,7 @@ export default function Incoming() {
             {shown.length === 0 ? (
               <p className="p-10 text-center text-muted">{EMPTY[tab]}</p>
             ) : (
-              <ul className="divide-y divide-line">{shown.map(({ r, km }) => <Row key={r.id} r={r} km={km} />)}</ul>
+              <ul className="divide-y divide-line">{shown.map(x => <Row key={x.r.id} r={x.r} km={x.km} short={x.short} />)}</ul>
             )}
           </section>
         </div>

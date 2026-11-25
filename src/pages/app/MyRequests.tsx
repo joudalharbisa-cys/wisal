@@ -57,8 +57,8 @@ export default function MyRequests() {
                       <div className="mt-1 text-xs text-muted">{r.charityName ?? 'ما انرسل لجمعية للحين'}{last?.at && <> · {last.label} <span className="tabular-nums">{formatDateTime(last.at)}</span></>}</div>
                     </div>
                     <div className="w-48 space-y-1.5">
-                      <RequestStatusBadge status={r.status} open={r.open} mode={r.mode} />
-                      <RequestProgress status={r.status} />
+                      <RequestStatusBadge status={r.status} open={r.open} mode={r.mode} hospital />
+                      <RequestProgress status={r.status} hospital />
                     </div>
                     <ChevronLeft className="size-5 text-muted" aria-hidden />
                   </Link>
