@@ -98,10 +98,24 @@ const reqs = [
   ['seed-sent', { ...base, qty: 20, status: 1, open: false, charityId: birr, charityName: 'جمعية البر بجدة', warehouseId: 'seed-wh' }],
   ['seed-open', { ...base, qty: 10, priority: 'medium', status: 0, open: true }],
 ]
+// Phase 6+7: 5 beds already accepted by جمعية البر (held in its stock), ready for prepare → deliver → code. Code 2468.
+const beds = key('أسرّة طبية')
+const bedRow = `seed-wh__${beds}__new`
+await put(`orgs/${birr}/stock/${bedRow}`, {
+  orgId: birr, orgName: 'جمعية البر بجدة', orgRole: 'charity', warehouseId: 'seed-wh', warehouseName: 'المستودع الرئيسي', city: 'جدة',
+  itemId: beds, itemName: 'أسرّة طبية', condition: 'new', qty: 8, reserved: 5, updatedAt: now,
+})
+const hourAgo = new Date(Date.now() - 36e5)
+reqs.push(['seed-accepted', {
+  ...base, itemId: beds, itemName: 'أسرّة طبية', qty: 5, accept: 'new', priority: 'medium', beneficiaries: 5, status: 2, open: false,
+  charityId: birr, charityName: 'جمعية البر بجدة', warehouseId: 'seed-wh', reservation: { [bedRow]: 5 },
+  createdAt: hourAgo, sentAt: hourAgo, acceptedAt: now,
+}])
+const fixedCodes = { 'seed-accepted': '2468' }
 for (const [id, r] of reqs) {
   await put(`requests/${id}`, r)
-  await put(`requestSecrets/${id}`, { code: String(1000 + Math.floor(Math.random() * 9000)), hospitalId: hosp })
+  await put(`requestSecrets/${id}`, { code: fixedCodes[id] ?? String(1000 + Math.floor(Math.random() * 9000)), hospitalId: hosp })
   await put(`requestContacts/${id}`, { hospitalId: hosp, name: 'أحمد الغامدي', phone: '0551234567' })
 }
-console.log('requests: one sent to جمعية البر, one open')
+console.log('requests: one sent to جمعية البر, one open, one accepted (5 beds, code 2468)')
 console.log(`test admin: admin@wesal.test · orgs password: ${PASSWORD}`)

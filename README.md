@@ -89,3 +89,13 @@
 - A rejected request goes back to the hospital («بانتظار قرارك»): choose another charity (the one that rejected is marked «رفضت الطلب قبل») or publish it as open. Any approved charity that can cover an open request may take it — including one that rejected it before. If two charities take it at once, one wins and the other sees «أخذته جمعية ثانية».
 - Data: `requests.open`, `reservation`, `acceptedAt`, `lastRejection`; receiver moved to `requestContacts/{id}` (hospital; accepting charity after acceptance). Stock rows: owners may set `reserved` within 0..qty; reserved rows/warehouses can't be deleted.
 - Local demo: `npm run seed:emulator` also adds one request sent to جمعية البر (charity@wesal.test) and one open request.
+
+## Phase 6+7 — Delivery and arrival check (التوصيل والتحقق)
+
+- Statuses are now 7: طلب مفتوح / بانتظار قرارك → بانتظار موافقة الجمعية → تمت الموافقة → تجهيز الطلب → قيد التوصيل (or جاهز للاستلام) → وصل، بانتظار الرمز → تم التحقق من الوصول.
+- Charity (`/app/incoming/:id`): [بدأنا التجهيز] → driver name, mobile and expected time → [طلع للتوصيل] → [وصل] → types the receipt code. A charity that can't deliver gets [جاهز للاستلام] and the hospital sends its own courier.
+- Hospital (`/app/requests/:id`): dated timeline of every step, the driver, a courier form for pickups, and [افتح إدخال الرمز] after 5 wrong codes.
+- The code check is enforced by the rules: every attempt is stored and counted first (max 5), closing needs the stored attempt to match `requestSecrets`, and the same batch must deduct the reserved stock (`qty` and `reserved` fall by the reserved amount).
+- Either side may add an optional meeting (date, time and an https link) while the request is between تمت الموافقة and وصل.
+- Lists show the latest step with its date and time.
+- Local demo: `npm run seed:emulator` also adds 5 beds already accepted by جمعية البر (code 2468) to walk the whole journey.
