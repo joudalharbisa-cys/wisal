@@ -7,6 +7,7 @@ import {
 } from 'firebase/auth'
 import {
   collection,
+  collectionGroup,
   deleteDoc,
   doc,
   getDoc,
@@ -16,6 +17,7 @@ import {
   runTransaction,
   serverTimestamp,
   setDoc,
+  Timestamp,
   updateDoc,
   where,
   writeBatch,
@@ -25,6 +27,8 @@ import {
 import { isValidItemKey, normalizeName, stockId } from '../features/inventory/names'
 import { MAX_QTY, type StockRow, type Warehouse } from '../features/inventory/types'
 import { validateItemName } from '../features/inventory/validate'
+import { makeReceiptCode } from '../features/requests/code'
+import type { HospitalRequest } from '../features/requests/types'
 import { toServiceError } from '../features/auth/errors'
 import { CONTRACT } from '../features/orgs/contract'
 import type { Org } from '../features/orgs/types'
@@ -213,17 +217,71 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
       },
     },
     requests: {
-      watchMine: notYet,
-      watchOne: notYet,
-      watchCode: notYet,
-      loadCandidates: notYet,
-      send: notYet,
+      watchMine(uid, cb, onError) {
+        return onSnapshot(
+          query(collection(db(), 'requests'), where('hospitalId', '==', uid)),
+          s => cb(s.docs.map(d => toRequest(d.id, d.data(snap))).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())),
+          e => onError?.(toServiceError(e)),
+        )
+      },
+      watchOne(id, cb, onError) {
+        return onSnapshot(
+          doc(db(), 'requests', id),
+          s => cb(s.exists() ? toRequest(s.id, s.data(snap)) : null),
+          e => (isDenied(e) ? cb(null) : onError?.(toServiceError(e))),
+        )
+      },
+      watchCode(id, cb, onError) {
+        return onSnapshot(
+          doc(db(), 'requestSecrets', id),
+          s => cb(s.exists() ? (s.data().code as string) : null),
+          e => (isDenied(e) ? cb(null) : onError?.(toServiceError(e))),
+        )
+      },
+      async loadCandidates(itemId) {
+        const found = await wrap(getDocs(query(collectionGroup(db(), 'stock'), where('orgRole', '==', 'charity'), where('itemId', '==', itemId))))
+        const all = found.docs.map(d => toStockRow(d.id, d.data()))
+        const orgIds = [...new Set(all.map(r => r.orgId))]
+        const whKeys = [...new Set(all.map(r => `${r.orgId}/${r.warehouseId}`))]
+        // One get per doc (a documentId() "in" query would be a list, which stays admin-only); failures are dropped.
+        const orgs = await Promise.allSettled(orgIds.map(id => getDoc(doc(db(), 'orgs', id))))
+        const charities = orgs.flatMap(r => {
+          if (r.status !== 'fulfilled' || !r.value.exists()) return []
+          const o = r.value.data()
+          return o.role === 'charity' && o.status === 'approved' ? [{ id: r.value.id, name: o.name as string, canDeliver: !!o.canDeliver, workingHours: (o.workingHours as string) ?? '' }] : []
+        })
+        const okIds = new Set(charities.map(c => c.id))
+        const whs = await Promise.allSettled(whKeys.filter(k => okIds.has(k.split('/')[0])).map(k => { const [o, w] = k.split('/'); return getDoc(doc(db(), 'orgs', o, 'warehouses', w)) }))
+        const warehouses = whs.flatMap(r => (r.status === 'fulfilled' && r.value.exists() ? [{ ...toWarehouse(r.value.id, r.value.data()), orgId: r.value.ref.parent.parent!.id }] : []))
+        return { charities, warehouses, rows: all.filter(r => okIds.has(r.orgId)) }
+      },
+      async send(hospital, req, choice) {
+        const wanted = resolveItem(req.item, normalizeName)
+        if (!isValidItemKey(wanted.key) || validateItemName(wanted.name)) throw new ServiceError('invalid-transition', 'bad product')
+        const itemRef = doc(db(), 'items', wanted.key)
+        const item = await wrap(getDoc(itemRef))
+        const itemName = item.exists() ? (item.data().name as string) : wanted.name
+        const ref = doc(collection(db(), 'requests'))
+        const code = makeReceiptCode()
+        const batch = writeBatch(db())
+        if (!item.exists()) batch.set(itemRef, { name: itemName, key: wanted.key, createdBy: hospital.uid, createdAt: serverTimestamp() })
+        batch.set(ref, {
+          hospitalId: hospital.uid, hospitalName: hospital.name, itemId: wanted.key, itemName, qty: req.qty, accept: req.accept, priority: req.priority,
+          beneficiaries: req.beneficiaries, neededBy: Timestamp.fromDate(req.neededBy), receiver: { ...req.receiver }, delivery: { ...req.delivery },
+          status: choice ? 1 : 0, ...(choice ?? {}), excluded: [], createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+        })
+        batch.set(doc(db(), 'requestSecrets', ref.id), { code, hospitalId: hospital.uid })
+        await wrap(batch.commit())
+        return { id: ref.id, code }
+      },
     },
   }
 }
 
-function notYet(): never {
-  throw new ServiceError('unknown', 'requests not implemented yet')
+const isDenied = (e: unknown) => (e as { code?: string }).code === 'permission-denied'
+
+function toRequest(id: string, d: DocumentData): HospitalRequest {
+  return { ...(d as Omit<HospitalRequest, 'id'>), id, neededBy: toDate(d.neededBy), createdAt: toDate(d.createdAt), updatedAt: toDate(d.updatedAt) }
 }
 
 function toWarehouse(id: string, d: DocumentData): Warehouse {
