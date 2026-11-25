@@ -187,9 +187,11 @@ describe('stock', () => {
     await seedWarehouse(); await seedItem(); await seed(`orgs/h1/stock/${SID}`, storedRow())
     await assertFails(row().update({ itemName: 'عكاز', updatedAt: ts() }))
   })
-  it('reserved cannot change on update', async () => {
+  it('reserved can rise up to qty but not above it or below 0', async () => {
     await seedWarehouse(); await seedItem(); await seed(`orgs/h1/stock/${SID}`, storedRow())
-    await assertFails(row().update({ reserved: 3, updatedAt: ts() }))
+    await assertFails(row().update({ reserved: 11, updatedAt: ts() }))
+    await assertFails(row().update({ reserved: -1, updatedAt: ts() }))
+    await assertSucceeds(row().update({ reserved: 3, updatedAt: ts() }))
   })
   it('other org cannot write', async () => {
     await seedWarehouse(); await seedItem(); await seed(`orgs/h1/stock/${SID}`, storedRow())

@@ -117,10 +117,11 @@ describe('reading requests', () => {
     await assertFails(user('h2').doc('requests/r1').get())
     await assertFails(user('h2').doc('requestSecrets/r1').get())
   })
-  it('charity cannot read request or code', async () => {
+  it('another charity cannot read the request; no charity reads the code', async () => {
     await seedRequest()
-    await assertFails(user('c1').doc('requests/r1').get())
+    await assertFails(user('c2').doc('requests/r1').get())
     await assertFails(user('c1').doc('requestSecrets/r1').get())
+    await assertFails(user('c2').doc('requestSecrets/r1').get())
   })
   it('owner lists own requests filtered by hospitalId; unfiltered list denied', async () => {
     await seedRequest()
