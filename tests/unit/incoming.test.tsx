@@ -61,6 +61,16 @@ describe('charity incoming requests', () => {
     expect(await within(list()).findByText(/طلب مقبول/)).toBeInTheDocument()
   })
 
+  it('accepted rows show the latest step with its date', async () => {
+    const user = renderAt({ requests: [req('r4', { status: 3, mode: 'delivery', charityId: 'c1', charityName: 'جمعية البر', warehouseId: 'wa', itemName: 'طلب مقبول', acceptedAt: new Date(2026, 10, 25, 11), preparingAt: new Date(2026, 10, 26, 8, 15) })] })
+    await screen.findByRole('tabpanel')
+    await user.click(screen.getByRole('tab', { name: /قبلتها/ }))
+    const row = within(list()).getByRole('listitem')
+    expect(row).toHaveTextContent('بدأ التجهيز')
+    expect(row).toHaveTextContent('26 نوفمبر · 8:15 ص')
+    expect(row).toHaveTextContent('تجهيز الطلب')
+  })
+
   it('empty tab says so', async () => {
     renderAt({ requests: [] })
     expect(await screen.findByText('ما فيه طلبات تنتظر ردك')).toBeInTheDocument()

@@ -6,7 +6,8 @@ import { PriorityBadge } from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Spinner from '../../components/ui/Spinner'
 import Stat from '../../components/ui/Stat'
-import { RequestProgress, RequestStatusBadge, shortDate } from '../../features/requests/RequestStatus'
+import { RequestProgress, RequestStatusBadge } from '../../features/requests/RequestStatus'
+import { formatDateTime, latestStep } from '../../features/requests/timeline'
 import type { HospitalRequest } from '../../features/requests/types'
 import AppShell from '../../layout/AppShell'
 import { useServices } from '../../services/ServicesContext'
@@ -48,21 +49,21 @@ export default function MyRequests() {
           </div>
           <section className={CARD}>
             <ul aria-label="طلباتي" className="divide-y divide-line">
-              {list.map(r => (
+              {list.map(r => { const last = latestStep(r); return (
                 <li key={r.id}>
                   <Link to={`/app/requests/${r.id}`} className="flex flex-wrap items-center gap-x-6 gap-y-3 px-5 py-4 transition hover:bg-surface">
                     <div className="min-w-44 flex-1">
                       <div className="flex flex-wrap items-center gap-2 font-bold">{r.itemName} · <span className="tabular-nums">{r.qty}</span> <PriorityBadge priority={r.priority} /></div>
-                      <div className="mt-1 text-xs text-muted">{r.charityName ?? 'ما انرسل لجمعية للحين'} · {shortDate(r.createdAt)}</div>
+                      <div className="mt-1 text-xs text-muted">{r.charityName ?? 'ما انرسل لجمعية للحين'}{last?.at && <> · {last.label} <span className="tabular-nums">{formatDateTime(last.at)}</span></>}</div>
                     </div>
                     <div className="w-48 space-y-1.5">
-                      <RequestStatusBadge status={r.status} open={r.open} />
+                      <RequestStatusBadge status={r.status} open={r.open} mode={r.mode} />
                       <RequestProgress status={r.status} />
                     </div>
                     <ChevronLeft className="size-5 text-muted" aria-hidden />
                   </Link>
                 </li>
-              ))}
+              ) })}
             </ul>
           </section>
         </div>

@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Building2, CalendarDays, ChevronLeft, MapPin } from 'lucide-react'
+import { Building2, CalendarDays, ChevronLeft, Clock, MapPin } from 'lucide-react'
 import Alert from '../../components/ui/Alert'
 import { PriorityBadge } from '../../components/ui/Badge'
 import Spinner from '../../components/ui/Spinner'
@@ -8,6 +8,7 @@ import type { StockRow, Warehouse } from '../../features/inventory/types'
 import { formatKm, haversineKm } from '../../features/requests/rank'
 import { RequestStatusBadge, shortDate } from '../../features/requests/RequestStatus'
 import { bestWarehouse } from '../../features/requests/reserve'
+import { formatDateTime, latestStep } from '../../features/requests/timeline'
 import type { HospitalRequest } from '../../features/requests/types'
 import AppShell from '../../layout/AppShell'
 import { useServices } from '../../services/ServicesContext'
@@ -18,6 +19,7 @@ type Tab = 'mine' | 'open' | 'accepted'
 const EMPTY: Record<Tab, string> = { mine: 'ما فيه طلبات تنتظر ردك', open: 'ما فيه طلبات مفتوحة تقدر تغطيها', accepted: 'ما قبلت طلبات للحين' }
 
 function Row({ r, km }: { r: HospitalRequest; km: number | null }) {
+  const last = r.status >= 2 ? latestStep(r, 'charity') : undefined
   return (
     <li>
       <Link to={`/app/incoming/${r.id}`} className="flex flex-wrap items-center gap-x-6 gap-y-3 px-5 py-4 transition hover:bg-surface">
@@ -28,9 +30,10 @@ function Row({ r, km }: { r: HospitalRequest; km: number | null }) {
             <span>{r.hospitalName}</span>
             <span className="flex items-center gap-1"><CalendarDays className="size-3.5" aria-hidden />يحتاجه قبل {shortDate(r.neededBy)}</span>
             {km !== null && <span className="flex items-center gap-1"><MapPin className="size-3.5" aria-hidden /><span className="tabular-nums">{formatKm(km)}</span> كم من مستودعك</span>}
+            {last?.at && <span className="flex items-center gap-1"><Clock className="size-3.5" aria-hidden />{last.label} <span className="tabular-nums">{formatDateTime(last.at)}</span></span>}
           </div>
         </div>
-        <RequestStatusBadge status={r.status} />
+        <RequestStatusBadge status={r.status} open={r.open} mode={r.mode} />
         <ChevronLeft className="size-5 text-muted" aria-hidden />
       </Link>
     </li>

@@ -85,6 +85,13 @@ describe('my requests', () => {
     expect(screen.getByText('طلبات مفتوحة').nextSibling).toHaveTextContent('1')
   })
 
+  it('each row shows its latest step with date and time', async () => {
+    renderAt('/app', { requests: [req('r7', { status: 4, mode: 'pickup', acceptedAt: new Date(2026, 10, 25, 11), preparingAt: new Date(2026, 10, 25, 12), outAt: new Date(2026, 10, 26, 13, 40) })] })
+    const row = within(await screen.findByRole('list', { name: 'طلباتي' })).getByRole('listitem')
+    expect(row).toHaveTextContent('جاهز للاستلام')
+    expect(row).toHaveTextContent('26 نوفمبر · 1:40 م')
+  })
+
   it('empty state offers a new request', async () => {
     const user = renderAt('/app', { requests: [] })
     expect(await screen.findByText('ما عندك طلبات للحين')).toBeInTheDocument()
