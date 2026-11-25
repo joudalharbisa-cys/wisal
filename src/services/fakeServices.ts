@@ -4,7 +4,7 @@ import { isValidItemKey, normalizeName, stockId } from '../features/inventory/na
 import { MAX_QTY, type Item, type StockRow, type Warehouse } from '../features/inventory/types'
 import { inSaudiBox, validateItemName } from '../features/inventory/validate'
 import { makeReceiptCode } from '../features/requests/code'
-import type { HospitalRequest } from '../features/requests/types'
+import type { Contact, HospitalRequest } from '../features/requests/types'
 import { applicationFields, resolveItem, ServiceError, type AuthUser, type Services } from './types'
 
 type Seed = {
@@ -17,6 +17,7 @@ type Seed = {
   stock?: StockRow[]
   requests?: HospitalRequest[]
   codes?: Record<string, string>
+  contacts?: Record<string, { hospitalId: string } & Contact>
   /** Simulate backend failures in tests. */
   failures?: { isAdmin?: boolean; watchOrg?: boolean; save?: boolean; inventory?: boolean; requests?: boolean }
 }
@@ -35,6 +36,7 @@ export function createFakeServices(seed: Seed = {}) {
     nextId: 0,
     requests: new Map<string, HospitalRequest>((seed.requests ?? []).map(r => [r.id, r])),
     codes: new Map<string, string>(Object.entries(seed.codes ?? {})),
+    contacts: new Map<string, { hospitalId: string } & Contact>(Object.entries(seed.contacts ?? {})),
   }
   if (seed.signedIn) {
     const u = state.users.find(x => x.uid === seed.signedIn)
@@ -259,6 +261,15 @@ export function createFakeServices(seed: Seed = {}) {
         // Like the rules: the code is readable only after the charity approved (status ≥ 2).
         return listenReq(() => { const r = mineOrNull(id); cb(r && r.status >= 2 ? state.codes.get(id) ?? null : null) }, onError)
       },
+      watchContact(id, cb, onError) {
+        return listenReq(() => {
+          const r = state.requests.get(id)
+          const c = state.contacts.get(id)
+          const me = state.current?.uid
+          const ok = !!r && !!c && (r.hospitalId === me || (r.charityId === me && r.status >= 2))
+          cb(ok ? { name: c!.name, phone: c!.phone } : null)
+        }, onError)
+      },
       async loadCandidates(itemId) {
         if (seed.failures?.requests) throw new ServiceError('network')
         const approvedCharity = (uid: string) => { const o = state.orgs.get(uid); return o?.role === 'charity' && o.status === 'approved' }
@@ -283,9 +294,10 @@ export function createFakeServices(seed: Seed = {}) {
         const t = now()
         state.requests.set(id, {
           id, hospitalId: hospital.uid, hospitalName: hospital.name, itemId: item.key, itemName: item.name, qty: req.qty, accept: req.accept,
-          priority: req.priority, beneficiaries: req.beneficiaries, neededBy: req.neededBy, receiver: { ...req.receiver }, delivery: { ...req.delivery },
-          status: choice ? 1 : 0, ...(choice ?? {}), createdAt: t, updatedAt: t,
+          priority: req.priority, beneficiaries: req.beneficiaries, neededBy: req.neededBy, delivery: { ...req.delivery },
+          status: choice ? 1 : 0, open: !choice, excluded: [], ...(choice ?? {}), createdAt: t, updatedAt: t,
         })
+        state.contacts.set(id, { hospitalId: hospital.uid, ...req.receiver })
         const code = makeReceiptCode()
         state.codes.set(id, code)
         emitInv()

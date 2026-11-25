@@ -238,6 +238,13 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
           e => (isDenied(e) ? cb(null) : onError?.(toServiceError(e))),
         )
       },
+      watchContact(id, cb, onError) {
+        return onSnapshot(
+          doc(db(), 'requestContacts', id),
+          s => cb(s.exists() ? { name: s.data().name as string, phone: s.data().phone as string } : null),
+          e => (isDenied(e) ? cb(null) : onError?.(toServiceError(e))),
+        )
+      },
       async loadCandidates(itemId) {
         const found = await wrap(getDocs(query(collectionGroup(db(), 'stock'), where('orgRole', '==', 'charity'), where('itemId', '==', itemId))))
         const all = found.docs.map(d => toStockRow(d.id, d.data()))
@@ -267,10 +274,11 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
         if (!item.exists()) batch.set(itemRef, { name: itemName, key: wanted.key, createdBy: hospital.uid, createdAt: serverTimestamp() })
         batch.set(ref, {
           hospitalId: hospital.uid, hospitalName: hospital.name, itemId: wanted.key, itemName, qty: req.qty, accept: req.accept, priority: req.priority,
-          beneficiaries: req.beneficiaries, neededBy: Timestamp.fromDate(req.neededBy), receiver: { ...req.receiver }, delivery: { ...req.delivery },
-          status: choice ? 1 : 0, ...(choice ?? {}), excluded: [], createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+          beneficiaries: req.beneficiaries, neededBy: Timestamp.fromDate(req.neededBy), delivery: { ...req.delivery },
+          status: choice ? 1 : 0, open: !choice, ...(choice ?? {}), excluded: [], createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
         })
         batch.set(doc(db(), 'requestSecrets', ref.id), { code, hospitalId: hospital.uid })
+        batch.set(doc(db(), 'requestContacts', ref.id), { hospitalId: hospital.uid, name: req.receiver.name, phone: req.receiver.phone })
         await wrap(batch.commit())
         return { id: ref.id, code }
       },
@@ -281,7 +289,12 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
 const isDenied = (e: unknown) => (e as { code?: string }).code === 'permission-denied'
 
 function toRequest(id: string, d: DocumentData): HospitalRequest {
-  return { ...(d as Omit<HospitalRequest, 'id'>), id, neededBy: toDate(d.neededBy), createdAt: toDate(d.createdAt), updatedAt: toDate(d.updatedAt) }
+  return {
+    ...(d as Omit<HospitalRequest, 'id'>), id, open: !!d.open, excluded: (d.excluded as string[]) ?? [],
+    neededBy: toDate(d.neededBy), createdAt: toDate(d.createdAt), updatedAt: toDate(d.updatedAt),
+    acceptedAt: d.acceptedAt ? toDate(d.acceptedAt) : undefined,
+    lastRejection: d.lastRejection ? { ...d.lastRejection, at: toDate(d.lastRejection.at) } : undefined,
+  }
 }
 
 function toWarehouse(id: string, d: DocumentData): Warehouse {

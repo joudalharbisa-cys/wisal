@@ -1,6 +1,6 @@
 import type { Org, OrgApplication, OrgWithId } from '../features/orgs/types'
 import type { Condition, Item, ItemChoice, LatLng, OrgRef, StockRow, Warehouse, WarehouseDraft } from '../features/inventory/types'
-import type { Candidates, CharityChoice, HospitalRequest, ValidRequest } from '../features/requests/types'
+import type { Candidates, CharityChoice, Contact, HospitalRequest, ValidRequest } from '../features/requests/types'
 
 export type AuthUser = { uid: string; email: string }
 
@@ -57,6 +57,8 @@ export interface Services {
     /** null when missing or not the caller's. */
     watchOne(id: string, cb: (r: HospitalRequest | null) => void, onError?: (e: ServiceError) => void): Unsubscribe
     watchCode(id: string, cb: (code: string | null) => void, onError?: (e: ServiceError) => void): Unsubscribe
+    /** Receiver name/phone; null when not readable (other orgs, or a charity before accepting). */
+    watchContact(id: string, cb: (c: Contact | null) => void, onError?: (e: ServiceError) => void): Unsubscribe
     /** Approved charities' stock rows for one product, with their warehouses and profiles. */
     loadCandidates(itemId: string): Promise<Candidates>
     /** Creates the product if needed, the request (status 1 with a charity, else 0 = open) and its receipt code. */

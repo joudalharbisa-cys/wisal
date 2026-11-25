@@ -14,17 +14,18 @@ const ORGS: Record<string, Org> = {
 }
 const req = (id: string, over: Partial<HospitalRequest> = {}): HospitalRequest => ({
   id, hospitalId: 'h1', hospitalName: 'مستشفى الملك فهد', itemId: 'k', itemName: 'كراسي متحركة', qty: 40, accept: 'any', priority: 'urgent', beneficiaries: 30,
-  neededBy: new Date(2026, 10, 27), receiver: { name: 'أحمد الغامدي', phone: '0551234567' }, delivery: { lat: 21.54, lng: 39.17, city: 'جدة', district: 'الشرفية', details: 'البوابة 3' },
+  neededBy: new Date(2026, 10, 27), open: false, excluded: [], delivery: { lat: 21.54, lng: 39.17, city: 'جدة', district: 'الشرفية', details: 'البوابة 3' },
   status: 1, charityId: 'c1', charityName: 'جمعية الشمال', warehouseId: 'w1', createdAt: new Date(2026, 10, 25, 10), updatedAt: new Date(), ...over,
 })
 const REQS = [
   req('r1'),
-  req('r2', { itemName: 'أجهزة تنفس', qty: 5, priority: 'normal', status: 0, charityId: undefined, charityName: undefined, warehouseId: undefined, createdAt: new Date(2026, 10, 25, 12) }),
+  req('r2', { itemName: 'أجهزة تنفس', qty: 5, priority: 'normal', status: 0, open: true, charityId: undefined, charityName: undefined, warehouseId: undefined, createdAt: new Date(2026, 10, 25, 12) }),
   req('r3', { hospitalId: 'h2', hospitalName: 'مستشفى الولادة', itemName: 'أسرّة طبية' }),
 ]
 
 function renderAt(path: string, seed: Partial<Parameters<typeof createFakeServices>[0]> = {}) {
-  const s = createFakeServices({ users: [{ uid: 'h1', email: 'h@t.sa', password: 'x' }], orgs: ORGS, signedIn: 'h1', requests: REQS, codes: { r1: '4827', r2: '0193', r3: '5555' }, ...seed })
+  const s = createFakeServices({ users: [{ uid: 'h1', email: 'h@t.sa', password: 'x' }], orgs: ORGS, signedIn: 'h1', requests: REQS, codes: { r1: '4827', r2: '0193', r3: '5555' },
+    contacts: { r1: { hospitalId: 'h1', name: 'أحمد الغامدي', phone: '0551234567' } }, ...seed })
   render(<ServicesProvider services={s}><MemoryRouter initialEntries={[path]}><App /></MemoryRouter></ServicesProvider>)
   return userEvent.setup()
 }
@@ -53,7 +54,7 @@ describe('my requests', () => {
 
   it('details show the receipt code once approved', async () => {
     renderAt('/app/requests/r4', { requests: [...REQS, req('r4', { status: 2 })], codes: { r4: '7310' } })
-    expect(await screen.findByLabelText('رمز الاستلام')).toHaveTextContent('7310')
+    expect(await screen.findByText('7310')).toHaveAttribute('aria-label', 'رمز الاستلام')
   })
 
   it('details show fields and hide the code before approval', async () => {

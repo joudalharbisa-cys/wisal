@@ -37,21 +37,22 @@ beforeEach(async () => {
 
 const base = (over: Record<string, unknown> = {}) => ({
   hospitalId: 'h1', hospitalName: 'مستشفى الملك فهد', itemId: ITEM, itemName: 'كراسي متحركة', qty: 40, accept: 'any', priority: 'urgent',
-  beneficiaries: 40, neededBy: new Date(2026, 10, 27), receiver: { name: 'أحمد', phone: '0551234567' },
+  beneficiaries: 40, neededBy: new Date(2026, 10, 27), open: false,
   delivery: { lat: 21.54, lng: 39.17, city: 'جدة', district: 'الشرفية', details: '' },
   status: 1, charityId: 'c1', charityName: 'جمعية البر', warehouseId: 'wc', excluded: [], createdAt: ts(), updatedAt: ts(), ...over,
 })
 const openReq = (over: Record<string, unknown> = {}) => {
-  const r: Record<string, unknown> = base({ status: 0, ...over })
+  const r: Record<string, unknown> = base({ status: 0, open: true, ...over })
   delete r.charityId; delete r.charityName; delete r.warehouseId
   return r
 }
-async function send(uid: string, data: Record<string, unknown>, opts: { code?: string | null; id?: string } = {}) {
+async function send(uid: string, data: Record<string, unknown>, opts: { code?: string | null; id?: string; contact?: Record<string, unknown> | null } = {}) {
   const db = user(uid)
   const id = opts.id ?? 'r1'
   const b = db.batch()
   b.set(db.doc(`requests/${id}`), data)
   if (opts.code !== null) b.set(db.doc(`requestSecrets/${id}`), { code: opts.code ?? '4827', hospitalId: data.hospitalId })
+  if (opts.contact !== null) b.set(db.doc(`requestContacts/${id}`), opts.contact ?? { hospitalId: data.hospitalId, name: 'أحمد', phone: '0551234567' })
   return b.commit()
 }
 const stored = (over: Record<string, unknown> = {}) => ({ ...base(), createdAt: new Date(), updatedAt: new Date(), ...over })
@@ -66,6 +67,14 @@ describe('creating requests', () => {
   it('request without a code is rejected', async () => { await assertFails(send('h1', base(), { code: null })) })
   it('code without a request is rejected', async () => {
     await assertFails(user('h1').doc('requestSecrets/r9').set({ code: '1234', hospitalId: 'h1' }))
+  })
+  it('request without its contact is rejected', async () => { await assertFails(send('h1', base(), { contact: null })) })
+  it('open must match the status', async () => {
+    await assertFails(send('h1', base({ open: true })))
+    await assertFails(send('h1', openReq({ open: false })))
+  })
+  it('the old receiver field is no longer accepted', async () => {
+    await assertFails(send('h1', base({ receiver: { name: 'أحمد', phone: '0551234567' } })))
   })
   it('code must be four digits', async () => { await assertFails(send('h1', base(), { code: '12a4' })) })
   it('charity cannot create a request', async () => {
@@ -85,7 +94,7 @@ describe('creating requests', () => {
     await assertFails(send('h1', base({ status: 0 })))
   })
   it('bad phone, qty 0 or delivery outside Saudi box rejected', async () => {
-    await assertFails(send('h1', base({ receiver: { name: 'أحمد', phone: '12345' } })))
+    await assertFails(send('h1', base(), { contact: { hospitalId: 'h1', name: 'أحمد', phone: '12345' } }))
     await assertFails(send('h1', base({ qty: 0 })))
     await assertFails(send('h1', base({ delivery: { lat: 40, lng: 39.17, city: 'جدة', district: 'الشرفية', details: '' } })))
   })
@@ -117,6 +126,13 @@ describe('reading requests', () => {
     await seedRequest()
     await assertSucceeds(user('h1').collection('requests').where('hospitalId', '==', 'h1').get())
     await assertFails(user('h1').collection('requests').get())
+  })
+  it('owner reads the contact; other hospitals and charities cannot', async () => {
+    await seedRequest()
+    await seed('requestContacts/r1', { hospitalId: 'h1', name: 'أحمد', phone: '0551234567' })
+    await assertSucceeds(user('h1').doc('requestContacts/r1').get())
+    await assertFails(user('h2').doc('requestContacts/r1').get())
+    await assertFails(user('c1').doc('requestContacts/r1').get())
   })
   it('nobody updates or deletes a request', async () => {
     await seedRequest()

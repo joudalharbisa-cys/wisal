@@ -53,7 +53,7 @@ service cloud.firestore {
       }
       function validRequest(d) {
         let required = ['hospitalId', 'hospitalName', 'itemId', 'itemName', 'qty', 'accept', 'priority', 'beneficiaries',
-                        'neededBy', 'receiver', 'delivery', 'status', 'excluded', 'createdAt', 'updatedAt'];
+                        'neededBy', 'delivery', 'status', 'open', 'excluded', 'createdAt', 'updatedAt'];
         return d.keys().hasAll(required)
           && d.keys().hasOnly(required.concat(['charityId', 'charityName', 'warehouseId']))
           && d.hospitalId == request.auth.uid
@@ -65,14 +65,12 @@ service cloud.firestore {
           && d.priority in ['urgent', 'medium', 'normal']
           && d.beneficiaries is int && d.beneficiaries >= 1 && d.beneficiaries <= 1000000
           && d.neededBy is timestamp
-          && d.receiver is map
-          && d.receiver.keys().hasOnly(['name', 'phone']) && d.receiver.keys().hasAll(['name', 'phone'])
-          && isStr(d.receiver.name, 2, 60)
-          && d.receiver.phone is string && d.receiver.phone.matches('^05[0-9]{8}$')
+          && d.open == (d.status == 0)
           && validDelivery(d.delivery)
           && d.excluded == []
           && d.createdAt == request.time && d.updatedAt == request.time
           && existsAfter(/databases/$(database)/documents/requestSecrets/$(rid))
+          && existsAfter(/databases/$(database)/documents/requestContacts/$(rid))
           && ((d.status == 0 && !('charityId' in d) && !('charityName' in d) && !('warehouseId' in d))
               || (d.status == 1 && charityOk(d)));
       }
@@ -91,6 +89,20 @@ service cloud.firestore {
       // The hospital sees its code only once the charity has approved (status ≥ 2). Charities never read it.
       allow read: if signedIn() && resource.data.hospitalId == request.auth.uid
         && get(/databases/$(database)/documents/requests/$(rid)).data.status >= 2;
+    }
+
+    // Receiver name/phone, apart from the request: the hospital, and the charity once it has accepted.
+    match /requestContacts/{rid} {
+      allow create: if isApprovedHospital()
+        && request.resource.data.keys().hasOnly(['hospitalId', 'name', 'phone'])
+        && request.resource.data.keys().hasAll(['hospitalId', 'name', 'phone'])
+        && request.resource.data.hospitalId == request.auth.uid
+        && isStr(request.resource.data.name, 2, 60)
+        && request.resource.data.phone is string && request.resource.data.phone.matches('^05[0-9]{8}$')
+        && getAfter(/databases/$(database)/documents/requests/$(rid)).data.hospitalId == request.auth.uid;
+      allow read: if signedIn() && (resource.data.hospitalId == request.auth.uid
+        || (get(/databases/$(database)/documents/requests/$(rid)).data.get('charityId', null) == request.auth.uid
+            && get(/databases/$(database)/documents/requests/$(rid)).data.status >= 2));
     }
 
     // Collection-group reads (phase 4 ranking): hospitals query charity rows only (where orgRole == 'charity').

@@ -45,15 +45,25 @@ export type HospitalRequest = {
   priority: Priority
   beneficiaries: number
   neededBy: Date
-  receiver: { name: string; phone: string }
   delivery: DeliveryPlace
   status: RequestStatus
+  /** status 0 only: true = published for any charity; false = waiting for the hospital (after a rejection). */
+  open: boolean
+  /** Charities that rejected this request (history). */
+  excluded: string[]
+  lastRejection?: { charityName: string; reason: string; at: Date }
+  /** stockId → quantity held, set when a charity accepts. */
+  reservation?: Record<string, number>
+  acceptedAt?: Date
   charityId?: string
   charityName?: string
   warehouseId?: string
   createdAt: Date
   updatedAt: Date
 }
+
+/** Receiver details, kept apart from the request: the hospital, and the charity once it accepts. */
+export type Contact = { name: string; phone: string }
 
 export type CharityInfo = { id: string; name: string; canDeliver: boolean; workingHours: string }
 export type CandidateWarehouse = Warehouse & { orgId: string }

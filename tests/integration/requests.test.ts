@@ -69,7 +69,8 @@ describe('requests on the emulator', () => {
     sentId = id
     expect(code).toMatch(/^\d{4}$/)
     const r = await next<HospitalRequest | null>(cb => H.s.requests.watchOne(id, cb), x => !!x)
-    expect(r).toMatchObject({ status: 1, charityId: C.me.uid, qty: 40, receiver: { phone: '0551234567' } })
+    expect(r).toMatchObject({ status: 1, open: false, charityId: C.me.uid, qty: 40 })
+    expect(await next<{ name: string; phone: string } | null>(cb => H.s.requests.watchContact(id, cb), x => !!x)).toEqual({ name: 'أحمد الغامدي', phone: '0551234567' })
     expect(r!.neededBy).toBeInstanceOf(Date)
     // The code stays hidden from the hospital until the charity approves (phase 5).
     expect(await next<string | null>(cb => H.s.requests.watchCode(id, cb), x => x === null)).toBeNull() // the server refuses until approval (the local cache may answer first)
@@ -91,6 +92,7 @@ describe('requests on the emulator', () => {
 
   it("charity cannot read the hospital's request", async () => {
     expect(await next<HospitalRequest | null>(cb => C.s.requests.watchOne(sentId, cb), () => true)).toBeNull()
+    expect(await next<{ name: string; phone: string } | null>(cb => C.s.requests.watchContact(sentId, cb), x => x === null)).toBeNull()
     expect(await next<string | null>(cb => C.s.requests.watchCode(sentId, cb), () => true)).toBeNull()
   }, 20000)
 })

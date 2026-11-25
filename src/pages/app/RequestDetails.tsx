@@ -6,7 +6,7 @@ import { PriorityBadge } from '../../components/ui/Badge'
 import Spinner from '../../components/ui/Spinner'
 import { STATUS_SHORT, type RequestStatus } from '../../lib/labels'
 import { longDate, RequestStatusBadge } from '../../features/requests/RequestStatus'
-import { ACCEPT_LABEL, type HospitalRequest } from '../../features/requests/types'
+import { ACCEPT_LABEL, type Contact, type HospitalRequest } from '../../features/requests/types'
 import AppShell from '../../layout/AppShell'
 import { useServices } from '../../services/ServicesContext'
 
@@ -27,9 +27,11 @@ export default function RequestDetails() {
   const { requests } = useServices()
   const [r, setR] = useState<HospitalRequest | null | undefined>(undefined)
   const [code, setCode] = useState<string | null>(null)
+  const [contact, setContact] = useState<Contact | null>(null)
   const [failed, setFailed] = useState(false)
 
   useEffect(() => requests.watchOne(id, setR, () => setFailed(true)), [requests, id])
+  useEffect(() => requests.watchContact(id, setContact), [requests, id])
   // The code is readable only after approval; start listening when the status gets there.
   const approved = !!r && r.status >= 2
   useEffect(() => (approved ? requests.watchCode(id, setCode, () => setFailed(true)) : undefined), [requests, id, approved])
@@ -68,8 +70,8 @@ export default function RequestDetails() {
             <Row icon={<Users className="size-4" />} label="عدد المستفيدين"><span className="tabular-nums">{r.beneficiaries}</span></Row>
             <Row icon={<CalendarDays className="size-4" />} label="آخر موعد">{longDate(r.neededBy)}</Row>
             <Row icon={<PackageCheck className="size-4" />} label="الحالة المقبولة">{ACCEPT_LABEL[r.accept]}</Row>
-            <Row icon={<UserRound className="size-4" />} label="المستلم">{r.receiver.name}</Row>
-            <Row icon={<Phone className="size-4" />} label="الجوال"><span dir="ltr" className="tabular-nums">{r.receiver.phone}</span></Row>
+            <Row icon={<UserRound className="size-4" />} label="المستلم">{contact?.name ?? '—'}</Row>
+            <Row icon={<Phone className="size-4" />} label="الجوال"><span dir="ltr" className="tabular-nums">{contact?.phone ?? '—'}</span></Row>
             <Row icon={<MapPin className="size-4" />} label="مكان التسليم">{place}</Row>
           </section>
         </div>
