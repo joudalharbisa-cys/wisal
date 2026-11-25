@@ -97,6 +97,21 @@ describe('charity delivery actions', () => {
     expect(screen.queryByText(/الرمز غلط/)).not.toBeInTheDocument()
   })
 
+  it('a rejected verify that briefly shows status 6 (local write rolled back) still reports the wrong code', async () => {
+    const { s, user } = renderAt({ status: 5, mode: 'delivery' })
+    const tick = () => new Promise(r => setTimeout(r, 30))
+    vi.spyOn(s.requests, 'submitCode').mockImplementation(async () => {
+      const r = s._state.requests.get('r1')!
+      s._state.requests.set('r1', { ...r, codeFails: 1, status: 6 }); s._emit(); await tick()
+      s._state.requests.set('r1', { ...r, codeFails: 1, status: 5 }); s._emit(); await tick()
+      return { result: 'wrong', remaining: 4 }
+    })
+    await user.type(await screen.findByRole('textbox', { name: 'رمز الاستلام' }), '1111')
+    await user.click(screen.getByRole('button', { name: 'تحقق' }))
+    expect(await screen.findByText('الرمز غلط، باقي 4 محاولات')).toBeInTheDocument()
+    expect(screen.queryByText('تم التحقق — الطلب مكتمل')).not.toBeInTheDocument()
+  })
+
   it('proposes, shows and removes a meeting', async () => {
     const { s, user } = renderAt()
     await user.click(await screen.findByRole('button', { name: 'اقترح اجتماع' }))

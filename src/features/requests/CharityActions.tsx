@@ -17,12 +17,14 @@ const SAVE_FAILED = 'ما قدرنا نحفظ، حاول مرة ثانية'
 
 type Result = { kind: 'wrong' | 'locked'; remaining: number } | { kind: 'network' } | null
 
-/** Status 5: the charity types the receipt code the hospital's receiver gives it. Five wrong tries lock entry. */
-function CodeEntry({ r, me }: { r: HospitalRequest; me: OrgRef }) {
+/** Status 5: the charity types the receipt code the hospital's receiver gives it. Five wrong tries lock entry.
+ *  The result and the in-flight flag live in the parent: a refused verify is first applied locally (status 6) and then
+ *  rolled back, and that flicker must neither unmount this form nor flash «مكتمل». */
+function CodeEntry({ r, me, result, setResult, busy, setBusy }: {
+  r: HospitalRequest; me: OrgRef; result: Result; setResult: (x: Result) => void; busy: boolean; setBusy: (b: boolean) => void
+}) {
   const { requests } = useServices()
   const [code, setCode] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState<Result>(null)
   const fails = r.codeFails ?? 0
   // Once the hospital unlocks (codeFails back to 0) earlier wrong/locked answers no longer apply.
   const counted = fails > 0 && result && result.kind !== 'network' ? result : null
@@ -72,6 +74,10 @@ export default function CharityActions({ r, me, canDeliver, warehouseName }: { r
   const { requests } = useServices()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [codeResult, setCodeResult] = useState<Result>(null)
+  const [checking, setChecking] = useState(false)
+  // While a code check is in flight, stay on status 5 whatever the local cache shows for a moment.
+  if (checking && r.status !== 5) r = { ...r, status: 5 }
   const run = (fn: () => Promise<void>) => async () => {
     setBusy(true)
     setError(null)
@@ -106,7 +112,7 @@ export default function CharityActions({ r, me, canDeliver, warehouseName }: { r
       <Button variant="secondary" className="mt-5 h-11 w-full" loading={busy} onClick={run(() => requests.markArrived(me, r.id))}>{pickup ? 'وصل مندوب المستشفى' : 'وصل'}</Button>
     </>
   } else if (r.status === 5) {
-    body = <CodeEntry r={r} me={me} />
+    body = <CodeEntry r={r} me={me} result={codeResult} setResult={setCodeResult} busy={checking} setBusy={setChecking} />
   } else {
     body = (
       <div className="mt-4 flex items-start gap-3 rounded-control bg-normal/10 p-3.5 text-sm">
