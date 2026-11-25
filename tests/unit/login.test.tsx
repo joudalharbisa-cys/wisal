@@ -42,7 +42,7 @@ it('approved member signs in and lands on the app home', async () => {
   await userEvent.type(await screen.findByLabelText('البريد الإلكتروني'), 'h@test.sa')
   await userEvent.type(screen.getByLabelText('كلمة المرور'), 'password123')
   await userEvent.click(screen.getByRole('button', { name: 'دخول' }))
-  expect(await screen.findByRole('heading', { name: 'مخزوني' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'طلباتي' })).toBeInTheDocument()
 })
 
 it('links to registration', async () => {

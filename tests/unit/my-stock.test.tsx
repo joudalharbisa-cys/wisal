@@ -99,7 +99,7 @@ describe('my stock page', () => {
 
   it('hospital copy says its stock is private', async () => {
     const s = createFakeServices({ users: [{ uid: 'h1', email: 'h@test.sa', password: 'x' }], orgs: { h1: { ...ORG, role: 'hospital', name: 'مستشفى الملك فهد' } as Org }, signedIn: 'h1' })
-    render(<ServicesProvider services={s}><MemoryRouter initialEntries={['/app']}><App /></MemoryRouter></ServicesProvider>)
+    render(<ServicesProvider services={s}><MemoryRouter initialEntries={['/app/stock']}><App /></MemoryRouter></ServicesProvider>)
     expect(await screen.findByText('مخزونك يظهر لك بس')).toBeInTheDocument()
   })
 })

@@ -20,7 +20,10 @@ export default function AppShell({ title, sub, action, tall = false, children }:
     nav = [{ to: '/admin', label: 'طلبات التسجيل', end: true }]
   } else if (session.kind === 'member' && session.org) {
     who = { label: session.org.name, icon: session.org.role === 'charity' ? HandHeart : Building2 }
-    if (session.org.status === 'approved') nav = [{ to: '/app', label: 'مخزوني', end: true }]
+    if (session.org.status === 'approved')
+      nav = session.org.role === 'hospital'
+        ? [{ to: '/app', label: 'طلباتي', end: true }, { to: '/app/stock', label: 'مخزوني' }]
+        : [{ to: '/app', label: 'مخزوني', end: true }]
   }
   const WhoIcon = who.icon
 

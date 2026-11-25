@@ -83,7 +83,7 @@ export default function WarehouseForm() {
       <AppShell title={title}>
         <section className="rounded-card bg-white p-10 text-center">
           <p className="font-bold">ما لقينا هذا المستودع</p>
-          <Link to="/app" className="mt-4 inline-block text-sm font-medium text-primary underline">رجوع لمخزوني</Link>
+          <Link to="/app/stock" className="mt-4 inline-block text-sm font-medium text-primary underline">رجوع لمخزوني</Link>
         </section>
       </AppShell>
     )
@@ -124,7 +124,7 @@ export default function WarehouseForm() {
     setFailed(false)
     try {
       await inventory.saveWarehouse({ uid, name: org.name, role: org.role }, id ?? null, { ...draft, location: draft.location })
-      navigate('/app')
+      navigate('/app/stock')
     } catch {
       setFailed(true)
       setSaving(false)
@@ -137,7 +137,7 @@ export default function WarehouseForm() {
     setFailed(false)
     try {
       await inventory.deleteWarehouse(uid, id)
-      navigate('/app')
+      navigate('/app/stock')
     } catch {
       setFailed(true)
       setDeleting(false)
@@ -192,7 +192,7 @@ export default function WarehouseForm() {
         <div className="flex flex-wrap items-center gap-2 border-t border-line px-6 py-4">
           {id && <Button variant="danger" onClick={() => setConfirmDelete(true)}><Trash2 className="size-4" /> حذف المستودع</Button>}
           <div className="ms-auto flex gap-2">
-            <Button variant="outline" onClick={() => navigate('/app')}>إلغاء</Button>
+            <Button variant="outline" onClick={() => navigate('/app/stock')}>إلغاء</Button>
             <Button variant="secondary" className="px-6" loading={saving} onClick={save}>حفظ المستودع</Button>
           </div>
         </div>

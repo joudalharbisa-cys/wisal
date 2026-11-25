@@ -116,6 +116,6 @@ describe('warehouse form', () => {
   it('unknown warehouse id shows not found', async () => {
     renderAt('/app/warehouses/nope', { warehouses: { h1: [W1] } })
     expect(await screen.findByText('ما لقينا هذا المستودع')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'رجوع لمخزوني' })).toHaveAttribute('href', '/app')
+    expect(screen.getByRole('link', { name: 'رجوع لمخزوني' })).toHaveAttribute('href', '/app/stock')
   })
 })

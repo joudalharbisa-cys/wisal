@@ -20,7 +20,7 @@ function renderApp(path: string, services: ReturnType<typeof createFakeServices>
 it('approved hospital sees its home and can sign out to the login page', async () => {
   const s = createFakeServices({ users: [{ uid: 'u1', email: 'h@test.sa', password: 'x' }], orgs: { u1: org('hospital', 'مستشفى الملك فهد') }, signedIn: 'u1' })
   renderApp('/app', s)
-  expect(await screen.findByRole('heading', { name: 'مخزوني' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'طلباتي' })).toBeInTheDocument()
   expect(screen.getByText('مستشفى الملك فهد')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'تسجيل الخروج' }))
   expect(await screen.findByRole('heading', { name: 'تسجيل الدخول' })).toBeInTheDocument()
