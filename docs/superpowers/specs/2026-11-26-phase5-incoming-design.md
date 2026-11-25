@@ -110,11 +110,15 @@ requests: {
 - Spark; transactions on the client; Western digits; Arabic copy.
 - The open-requests query is `status == 0` (single equality, no index needed); charity-side filtering by stock happens on the client.
 
+## Change after screen approval (2026-11-26, user)
+
+- **A charity that rejected may still take the request later** («عادي المفروض»). `excluded` no longer blocks anything: the take-open rule drops `!(uid in excluded)`, the open list shows the request to every charity that can cover it, and the hospital's re-ranking keeps that charity, marked «رفضت الطلب قبل». `excluded` stays as history.
+
 ## Calls made after the builder check
 
 - **A rejected request waits for the hospital, it is not open.** New boolean `open` on requests: `true` only when the hospital published it as open (phase 3 "publish as open" now writes `status 0, open true`; a sent request writes `open false`). Reject → `status 0, open false` («بانتظار قرارك» for the hospital). The hospital then either chooses another charity (→ 1) or publishes it (`open: true`). Charities read/take only `status == 0 && open == true`; the open query is `where status == 0 and open == true` (two equalities, served by single-field indexes).
 - **Receiver name/phone move to `requestContacts/{id}`** (created in the same batch as the request): readable by the hospital and, once accepted (status ≥ 2), by the accepting charity. Rules can't hide fields inside `requests`, and open requests are readable by every approved charity.
-- **"Never again" for a charity that rejected:** enforced for *taking* (rules: `!(uid in excluded)`); the open list hides it in the UI. The API can still show it the open request — accepted.
+- ~~"Never again" for a charity that rejected~~ — dropped by the user (see above).
 - **Accept from another warehouse:** if the hospital's chosen warehouse is now short, the charity may accept from any of its own warehouses that covers the quantity (`warehouseId` may change on accept; must exist under the charity).
 - **Race / lost access:** permission-denied on the transaction's first read or on `watchForCharity` means another charity took it → «أخذته جمعية ثانية» / `null`.
 - **Rules details:** use `resource.data.get('charityId', null)`; stock update allows `reserved` (int, 0 ≤ reserved ≤ qty); transactions read stock rows by id (`wh__item__new` / `__used`); field removal checked with `!('charityId' in request.resource.data)`.
