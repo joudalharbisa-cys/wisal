@@ -212,7 +212,18 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
         await wrap(deleteDoc(doc(db(), 'orgs', uid, 'stock', id)))
       },
     },
+    requests: {
+      watchMine: notYet,
+      watchOne: notYet,
+      watchCode: notYet,
+      loadCandidates: notYet,
+      send: notYet,
+    },
   }
+}
+
+function notYet(): never {
+  throw new ServiceError('unknown', 'requests not implemented yet')
 }
 
 function toWarehouse(id: string, d: DocumentData): Warehouse {

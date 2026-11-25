@@ -3,6 +3,8 @@ import type { Org, OrgWithId } from '../features/orgs/types'
 import { isValidItemKey, normalizeName, stockId } from '../features/inventory/names'
 import { MAX_QTY, type Item, type StockRow, type Warehouse } from '../features/inventory/types'
 import { inSaudiBox, validateItemName } from '../features/inventory/validate'
+import { makeReceiptCode } from '../features/requests/code'
+import type { HospitalRequest } from '../features/requests/types'
 import { applicationFields, resolveItem, ServiceError, type AuthUser, type Services } from './types'
 
 type Seed = {
@@ -13,8 +15,10 @@ type Seed = {
   items?: Item[]
   warehouses?: Record<string, Warehouse[]>
   stock?: StockRow[]
+  requests?: HospitalRequest[]
+  codes?: Record<string, string>
   /** Simulate backend failures in tests. */
-  failures?: { isAdmin?: boolean; watchOrg?: boolean; save?: boolean; inventory?: boolean }
+  failures?: { isAdmin?: boolean; watchOrg?: boolean; save?: boolean; inventory?: boolean; requests?: boolean }
 }
 
 /** In-memory backend with the same transitions the security rules allow. Used by UI tests and local demos. */
@@ -29,6 +33,8 @@ export function createFakeServices(seed: Seed = {}) {
     warehouses: new Map<string, Warehouse[]>(Object.entries(seed.warehouses ?? {})),
     stock: new Map<string, StockRow>((seed.stock ?? []).map(r => [`${r.orgId}/${r.id}`, r])),
     nextId: 0,
+    requests: new Map<string, HospitalRequest>((seed.requests ?? []).map(r => [r.id, r])),
+    codes: new Map<string, string>(Object.entries(seed.codes ?? {})),
   }
   if (seed.signedIn) {
     const u = state.users.find(x => x.uid === seed.signedIn)
@@ -72,6 +78,20 @@ export function createFakeServices(seed: Seed = {}) {
     invCbs.add(f)
     queueMicrotask(f)
     return () => { invCbs.delete(f) }
+  }
+  // Requests reuse the inventory change feed; reads mirror the rules (only the owning hospital).
+  const listenReq = (f: () => void, onError?: (e: ServiceError) => void) => {
+    if (seed.failures?.requests) {
+      queueMicrotask(() => onError?.(new ServiceError('network')))
+      return () => {}
+    }
+    invCbs.add(f)
+    queueMicrotask(f)
+    return () => { invCbs.delete(f) }
+  }
+  const mineOrNull = (id: string) => {
+    const r = state.requests.get(id)
+    return r && r.hospitalId === state.current?.uid ? r : null
   }
   const rowsOf = (uid: string) => [...state.stock.values()].filter(r => r.orgId === uid)
   const mustApproved = (uid: string) => {
@@ -226,6 +246,49 @@ export function createFakeServices(seed: Seed = {}) {
         if (r && r.reserved > 0) throw new ServiceError('invalid-transition', 'reserved stock')
         state.stock.delete(`${uid}/${id}`)
         emitInv()
+      },
+    },
+    requests: {
+      watchMine(uid, cb, onError) {
+        return listenReq(() => cb([...state.requests.values()].filter(r => r.hospitalId === uid).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())), onError)
+      },
+      watchOne(id, cb, onError) {
+        return listenReq(() => cb(mineOrNull(id)), onError)
+      },
+      watchCode(id, cb, onError) {
+        return listenReq(() => cb(mineOrNull(id) ? state.codes.get(id) ?? null : null), onError)
+      },
+      async loadCandidates(itemId) {
+        if (seed.failures?.requests) throw new ServiceError('network')
+        const approvedCharity = (uid: string) => { const o = state.orgs.get(uid); return o?.role === 'charity' && o.status === 'approved' }
+        const rows = [...state.stock.values()].filter(r => r.itemId === itemId && r.orgRole === 'charity' && approvedCharity(r.orgId))
+        const ids = [...new Set(rows.map(r => r.orgId))]
+        const warehouses = ids.flatMap(id => (state.warehouses.get(id) ?? []).filter(w => rows.some(r => r.orgId === id && r.warehouseId === w.id)).map(w => ({ ...w, orgId: id })))
+        const charities = ids.map(id => { const o = state.orgs.get(id)!; return { id, name: o.name, canDeliver: !!o.canDeliver, workingHours: o.workingHours ?? '' } })
+        return { charities, warehouses, rows }
+      },
+      async send(hospital, req, choice) {
+        const o = state.orgs.get(hospital.uid)
+        if (o?.status !== 'approved' || o.role !== 'hospital') throw new ServiceError('invalid-transition', 'only approved hospitals send')
+        if (seed.failures?.requests) throw new ServiceError('network')
+        if (choice) {
+          const c = state.orgs.get(choice.charityId)
+          if (c?.role !== 'charity' || c.status !== 'approved' || c.name !== choice.charityName) throw new ServiceError('invalid-transition', 'bad charity')
+        }
+        const wanted = resolveItem(req.item, normalizeName)
+        const item = state.items.get(wanted.key) ?? wanted
+        state.items.set(item.key, item)
+        const id = `r${++state.nextId}`
+        const t = now()
+        state.requests.set(id, {
+          id, hospitalId: hospital.uid, hospitalName: hospital.name, itemId: item.key, itemName: item.name, qty: req.qty, accept: req.accept,
+          priority: req.priority, beneficiaries: req.beneficiaries, neededBy: req.neededBy, receiver: { ...req.receiver }, delivery: { ...req.delivery },
+          status: choice ? 1 : 0, ...(choice ?? {}), createdAt: t, updatedAt: t,
+        })
+        const code = makeReceiptCode()
+        state.codes.set(id, code)
+        emitInv()
+        return { id, code }
       },
     },
   }
