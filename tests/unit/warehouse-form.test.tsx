@@ -113,6 +113,14 @@ describe('warehouse form', () => {
     expect(await screen.findByText('تعذّر تحميل المخزون، تأكد من الاتصال وحاول مرة ثانية')).toBeInTheDocument()
   })
 
+  it('a warehouse holding reserved stock cannot be deleted', async () => {
+    const { user } = renderAt('/app/warehouses/w1', { warehouses: { h1: [W1] }, stock: [{ ...row('عكازات'), reserved: 2 }] })
+    await user.click(await screen.findByRole('button', { name: 'حذف المستودع' }))
+    const d = screen.getByRole('dialog', { name: 'حذف المستودع' })
+    expect(d).toHaveTextContent('فيه كمية محجوزة لطلب في هذا المستودع، ما تقدر تحذفه الحين')
+    expect(within(d).queryByRole('button', { name: 'حذف' })).not.toBeInTheDocument()
+  })
+
   it('unknown warehouse id shows not found', async () => {
     renderAt('/app/warehouses/nope', { warehouses: { h1: [W1] } })
     expect(await screen.findByText('ما لقينا هذا المستودع')).toBeInTheDocument()

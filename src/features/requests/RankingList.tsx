@@ -6,7 +6,7 @@ import type { Ranked } from './types'
 const CARD = 'rounded-card border bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]'
 
 /** Ranked charities, best first; one can be chosen. */
-export default function RankingList({ ranked, chosen, onChoose }: { ranked: Ranked[]; chosen: string | null; onChoose: (charityId: string) => void }) {
+export default function RankingList({ ranked, chosen, onChoose, rejectedBefore = [] }: { ranked: Ranked[]; chosen: string | null; onChoose: (charityId: string) => void; rejectedBefore?: string[] }) {
   return (
     <ul aria-label="الجمعيات المناسبة" className="space-y-3">
       {ranked.map((r, i) => {
@@ -17,6 +17,7 @@ export default function RankingList({ ranked, chosen, onChoose }: { ranked: Rank
             <div className="min-w-48 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="font-bold">{r.charity.name}</h3>
+                {rejectedBefore.includes(r.charity.id) && <span className="rounded-full bg-medium/10 px-2 py-0.5 text-[11px] font-medium text-medium">رفضت الطلب قبل</span>}
                 {r.charity.canDeliver && <span className="inline-flex items-center gap-1 rounded-full bg-primary-light px-2 py-0.5 text-[11px] font-medium text-primary-dark"><Truck className="size-3" /> توصّل</span>}
               </div>
               <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">

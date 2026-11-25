@@ -103,6 +103,7 @@ export default function WarehouseForm() {
     if (lat !== null && lng !== null) userMovedPin({ lat, lng })
   }
   const rowCount = id ? rows.filter(r => r.warehouseId === id).length : 0
+  const reservedHere = id ? rows.some(r => r.warehouseId === id && r.reserved > 0) : false
 
   const locate = async () => {
     setLocating(true)
@@ -200,11 +201,13 @@ export default function WarehouseForm() {
 
       {confirmDelete && (
         <Dialog title="حذف المستودع" icon={<Trash2 className="size-5" />} onClose={() => setConfirmDelete(false)}
-          footer={<>
-            <Button variant="outline" onClick={() => setConfirmDelete(false)}>إلغاء</Button>
-            <Button variant="danger" loading={deleting} onClick={remove}>حذف</Button>
-          </>}>
-          <p>{rowCount > 0 ? `حذف المستودع ومعه ${rowCount} منتج؟` : 'حذف المستودع؟'}</p>
+          footer={reservedHere
+            ? <Button variant="outline" onClick={() => setConfirmDelete(false)}>تمام</Button>
+            : <>
+              <Button variant="outline" onClick={() => setConfirmDelete(false)}>إلغاء</Button>
+              <Button variant="danger" loading={deleting} onClick={remove}>حذف</Button>
+            </>}>
+          <p>{reservedHere ? 'فيه كمية محجوزة لطلب في هذا المستودع، ما تقدر تحذفه الحين' : rowCount > 0 ? `حذف المستودع ومعه ${rowCount} منتج؟` : 'حذف المستودع؟'}</p>
         </Dialog>
       )}
     </AppShell>

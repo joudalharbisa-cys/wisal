@@ -80,6 +80,17 @@ describe('my stock page', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
+  it('reserved quantities show and reserved rows cannot be deleted', async () => {
+    const { user } = renderAt({ warehouses: { c1: [W1] }, stock: [{ ...row(W1, SEED_ITEMS[0], 'new', 40), reserved: 10 }] })
+    const c = await screen.findByRole('region', { name: 'المستودع الرئيسي' })
+    expect(within(c).getByRole('columnheader', { name: 'المحجوز' })).toBeInTheDocument()
+    expect(within(c).getByText('10')).toBeInTheDocument()
+    await user.click(within(c).getByRole('button', { name: 'حذف كراسي متحركة جديد' }))
+    const d = screen.getByRole('dialog', { name: 'حذف منتج' })
+    expect(d).toHaveTextContent('فيه كمية محجوزة لطلب، ما تقدر تحذفها الحين')
+    expect(within(d).queryByRole('button', { name: 'حذف' })).not.toBeInTheDocument()
+  })
+
   it('nav shows مخزوني and no shared stock page', async () => {
     renderAt()
     expect(await screen.findByRole('link', { name: 'مخزوني' })).toHaveAttribute('href', '/app/stock')

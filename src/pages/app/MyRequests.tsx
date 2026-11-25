@@ -44,7 +44,7 @@ export default function MyRequests() {
           <div className="grid gap-4 sm:grid-cols-3">
             <Stat label="كل الطلبات" value={list.length} icon={<ClipboardList className="size-5" />} />
             <Stat label="بانتظار موافقة" value={list.filter(r => r.status === 1).length} icon={<Send className="size-5" />} />
-            <Stat label="طلبات مفتوحة" value={list.filter(r => r.status === 0).length} icon={<Hourglass className="size-5" />} />
+            <Stat label="طلبات مفتوحة" value={list.filter(r => r.status === 0 && r.open).length} icon={<Hourglass className="size-5" />} />
           </div>
           <section className={CARD}>
             <ul aria-label="طلباتي" className="divide-y divide-line">
@@ -56,7 +56,7 @@ export default function MyRequests() {
                       <div className="mt-1 text-xs text-muted">{r.charityName ?? 'ما انرسل لجمعية للحين'} · {shortDate(r.createdAt)}</div>
                     </div>
                     <div className="w-48 space-y-1.5">
-                      <RequestStatusBadge status={r.status} />
+                      <RequestStatusBadge status={r.status} open={r.open} />
                       <RequestProgress status={r.status} />
                     </div>
                     <ChevronLeft className="size-5 text-muted" aria-hidden />

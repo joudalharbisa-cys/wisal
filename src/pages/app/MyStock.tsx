@@ -29,6 +29,7 @@ function WarehouseCard({ wh, rows, onAdd, onEdit, onDelete }: { wh: Warehouse; r
   const titleId = useId()
   const navigate = useNavigate()
   const sorted = [...rows].sort((a, b) => a.itemName.localeCompare(b.itemName, 'ar') || a.condition.localeCompare(b.condition))
+  const anyReserved = rows.some(r => r.reserved > 0)
   return (
     <section aria-labelledby={titleId} className={CARD}>
       <div className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-4">
@@ -46,11 +47,12 @@ function WarehouseCard({ wh, rows, onAdd, onEdit, onDelete }: { wh: Warehouse; r
         <p className="px-5 py-8 text-center text-sm text-muted">ما فيه منتجات في هذا المستودع للحين</p>
       ) : (
         <Table
-          columns={['المنتج', 'الحالة', 'الكمية', '']}
+          columns={anyReserved ? ['المنتج', 'الحالة', 'الكمية', 'المحجوز', ''] : ['المنتج', 'الحالة', 'الكمية', '']}
           rows={sorted.map(r => [
             <span className="font-medium">{r.itemName}</span>,
             <ConditionBadge condition={r.condition} />,
             r.qty === 0 ? <span className="text-sm font-medium text-urgent">نفد</span> : <span className="font-bold tabular-nums">{r.qty}</span>,
+            ...(anyReserved ? [r.reserved > 0 ? <span className="font-medium text-accent tabular-nums">{r.reserved}</span> : <span className="text-muted">—</span>] : []),
             <div className="flex justify-end gap-1">
               <IconButton label={`تعديل كمية ${r.itemName} ${CONDITION_LABEL[r.condition]}`} onClick={() => onEdit(r)}><Pencil className="size-4" /></IconButton>
               <IconButton danger label={`حذف ${r.itemName} ${CONDITION_LABEL[r.condition]}`} onClick={() => onDelete(r)}><Trash2 className="size-4" /></IconButton>
@@ -141,11 +143,15 @@ export default function MyStock() {
       )}
       {deleting && (
         <Dialog title="حذف منتج" icon={<Trash2 className="size-5" />} onClose={() => setDeleting(null)}
-          footer={<>
-            <Button variant="outline" onClick={() => setDeleting(null)}>إلغاء</Button>
-            <Button variant="danger" loading={busy} onClick={confirmDelete}>حذف</Button>
-          </>}>
-          <p>حذف «{deleting.itemName} · {CONDITION_LABEL[deleting.condition]}» من {deleting.warehouseName}؟</p>
+          footer={deleting.reserved > 0
+            ? <Button variant="outline" onClick={() => setDeleting(null)}>تمام</Button>
+            : <>
+              <Button variant="outline" onClick={() => setDeleting(null)}>إلغاء</Button>
+              <Button variant="danger" loading={busy} onClick={confirmDelete}>حذف</Button>
+            </>}>
+          {deleting.reserved > 0
+            ? <p>فيه كمية محجوزة لطلب، ما تقدر تحذفها الحين ({deleting.reserved} من «{deleting.itemName} · {CONDITION_LABEL[deleting.condition]}»).</p>
+            : <p>حذف «{deleting.itemName} · {CONDITION_LABEL[deleting.condition]}» من {deleting.warehouseName}؟</p>}
           {deleteFailed && <Alert tone="danger">ما قدرنا نحذف، حاول مرة ثانية</Alert>}
         </Dialog>
       )}

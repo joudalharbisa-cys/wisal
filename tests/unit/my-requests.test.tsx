@@ -30,6 +30,46 @@ function renderAt(path: string, seed: Partial<Parameters<typeof createFakeServic
   return userEvent.setup()
 }
 
+const CHAIRS_KEY = 'k'
+const cw = (id: string, lat: number) => ({ id, name: `مستودع ${id}`, city: 'جدة', district: 'حي', location: { lat, lng: 39.17 }, createdAt: new Date(), updatedAt: new Date() })
+const crow = (orgId: string, orgName: string, wh: string) => ({ id: `${wh}__${CHAIRS_KEY}__new`, orgId, orgName, orgRole: 'charity' as const, warehouseId: wh, warehouseName: wh, city: 'جدة', itemId: CHAIRS_KEY, itemName: 'كراسي متحركة', condition: 'new' as const, qty: 80, reserved: 0, updatedAt: new Date() })
+const REJECTED = req('r5', { status: 0, open: false, excluded: ['c6'], charityId: undefined, charityName: undefined, warehouseId: undefined,
+  lastRejection: { charityName: 'جمعية الشمال', reason: 'مشغولين', at: new Date() }, createdAt: new Date(2026, 10, 25, 14) })
+const withCharities = {
+  orgs: { ...ORGS, c1: { role: 'charity', name: 'جمعية البر', status: 'approved', canDeliver: true, workingHours: 'يوميًا' } as Org, c6: { role: 'charity', name: 'جمعية الشمال', status: 'approved', canDeliver: false, workingHours: 'الأحد' } as Org },
+  warehouses: { c1: [cw('w1', 21.572)], c6: [cw('w6', 21.596)] },
+  stock: [crow('c1', 'جمعية البر', 'w1'), crow('c6', 'جمعية الشمال', 'w6')],
+  requests: [...REQS, REJECTED],
+}
+
+describe('after a rejection', () => {
+  it('rejected request shows the banner and lets the hospital choose again', async () => {
+    const user = renderAt('/app/requests/r5', withCharities)
+    expect(await screen.findByText('رفضت جمعية الشمال الطلب')).toBeInTheDocument()
+    expect(screen.getByText(/مشغولين/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'اختر جمعية ثانية' }))
+    const list = await screen.findByRole('list', { name: 'الجمعيات المناسبة' })
+    expect(within(list).getAllByRole('heading').map(h => h.textContent)).toContain('جمعية الشمال')
+    expect(within(list).getByText('رفضت الطلب قبل')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'اختر جمعية البر' }))
+    await user.click(screen.getByRole('button', { name: 'أرسل الطلب لـجمعية البر' }))
+    expect(await screen.findByText('بانتظار موافقة الجمعية', { selector: '[data-testid="status-badge"]' })).toBeInTheDocument()
+  })
+
+  it('publishing makes it open', async () => {
+    const user = renderAt('/app/requests/r5', withCharities)
+    await user.click(await screen.findByRole('button', { name: 'انشره كطلب مفتوح' }))
+    expect(await screen.findByText('طلب مفتوح', { selector: '[data-testid="status-badge"]' })).toBeInTheDocument()
+    expect(screen.queryByText('رفضت جمعية الشمال الطلب')).not.toBeInTheDocument()
+  })
+
+  it('the list marks it as waiting for the hospital', async () => {
+    renderAt('/app', withCharities)
+    const list = await screen.findByRole('list', { name: 'طلباتي' })
+    expect(within(list).getAllByRole('listitem')[0]).toHaveTextContent('بانتظار قرارك')
+  })
+})
+
 describe('my requests', () => {
   it('lists requests newest first with status', async () => {
     renderAt('/app')
