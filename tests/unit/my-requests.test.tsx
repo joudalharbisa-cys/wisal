@@ -51,10 +51,16 @@ describe('my requests', () => {
     expect(await screen.findByRole('heading', { name: 'طلب جديد' })).toBeInTheDocument()
   })
 
-  it('details show fields and the receipt code', async () => {
+  it('details show the receipt code once approved', async () => {
+    renderAt('/app/requests/r4', { requests: [...REQS, req('r4', { status: 2 })], codes: { r4: '7310' } })
+    expect(await screen.findByLabelText('رمز الاستلام')).toHaveTextContent('7310')
+  })
+
+  it('details show fields and hide the code before approval', async () => {
     renderAt('/app/requests/r1')
     expect(await screen.findByRole('heading', { name: 'كراسي متحركة · 40' })).toBeInTheDocument()
-    expect(await screen.findByLabelText('رمز الاستلام')).toHaveTextContent('4827')
+    expect(await screen.findByText('يظهر رمز الاستلام هنا بعد موافقة الجمعية')).toBeInTheDocument()
+    expect(screen.queryByText('4827')).not.toBeInTheDocument()
     for (const t of ['جمعية الشمال', 'أحمد الغامدي', 'جديد او مستعمل', 'جدة، الشرفية · البوابة 3']) expect(screen.getByText(t)).toBeInTheDocument()
     expect(screen.getAllByText('بانتظار موافقة الجمعية').length).toBeGreaterThan(0)
   })

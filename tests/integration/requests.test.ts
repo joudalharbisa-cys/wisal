@@ -71,14 +71,16 @@ describe('requests on the emulator', () => {
     const r = await next<HospitalRequest | null>(cb => H.s.requests.watchOne(id, cb), x => !!x)
     expect(r).toMatchObject({ status: 1, charityId: C.me.uid, qty: 40, receiver: { phone: '0551234567' } })
     expect(r!.neededBy).toBeInstanceOf(Date)
-    expect(await next<string | null>(cb => H.s.requests.watchCode(id, cb), x => !!x)).toBe(code)
+    // The code stays hidden from the hospital until the charity approves (phase 5).
+    expect(await next<string | null>(cb => H.s.requests.watchCode(id, cb), x => x === null)).toBeNull() // the server refuses until approval (the local cache may answer first)
   }, 20000)
 
   it('open request is stored with a code', async () => {
     const { id, code } = await H.s.requests.send(H.me, { ...REQ, qty: 500 }, null)
     const r = await next<HospitalRequest | null>(cb => H.s.requests.watchOne(id, cb), x => !!x)
     expect(r?.status).toBe(0)
-    expect(await next<string | null>(cb => H.s.requests.watchCode(id, cb), x => !!x)).toBe(code)
+    expect(code).toMatch(/^\d{4}$/)
+    expect(await next<string | null>(cb => H.s.requests.watchCode(id, cb), x => x === null)).toBeNull() // the server refuses until approval (the local cache may answer first)
   }, 20000)
 
   it('hospital sees own requests newest first', async () => {

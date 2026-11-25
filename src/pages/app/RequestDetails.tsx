@@ -29,10 +29,10 @@ export default function RequestDetails() {
   const [code, setCode] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
 
-  useEffect(() => {
-    const stops = [requests.watchOne(id, setR, () => setFailed(true)), requests.watchCode(id, setCode, () => setFailed(true))]
-    return () => stops.forEach(s => s())
-  }, [requests, id])
+  useEffect(() => requests.watchOne(id, setR, () => setFailed(true)), [requests, id])
+  // The code is readable only after approval; start listening when the status gets there.
+  const approved = !!r && r.status >= 2
+  useEffect(() => (approved ? requests.watchCode(id, setCode, () => setFailed(true)) : undefined), [requests, id, approved])
 
   if (failed) return <AppShell title="تفاصيل الطلب"><Alert tone="danger">تعذّر تحميل الطلب، حاول مرة ثانية</Alert></AppShell>
   if (r === undefined) return <AppShell title="تفاصيل الطلب"><div className="grid place-items-center rounded-card bg-white p-12 text-primary"><Spinner className="size-7" /></div></AppShell>
@@ -76,8 +76,14 @@ export default function RequestDetails() {
         <section className={`${CARD} h-fit p-6 text-center`}>
           <span className="mx-auto grid size-12 place-items-center rounded-full bg-accent-light text-accent"><KeyRound className="size-6" /></span>
           <h2 className="mt-3 font-bold">رمز الاستلام</h2>
-          <div dir="ltr" aria-label="رمز الاستلام" className="mx-auto mt-4 w-fit rounded-card border-2 border-dashed border-accent/50 bg-accent-light px-6 py-3 text-4xl font-bold tracking-[0.4em] tabular-nums">{code ?? '····'}</div>
-          <p className="mt-3 text-xs text-muted">اعطِه للمندوب عند الاستلام بس. الجمعية ما تشوف هذا الرمز.</p>
+          {r.status >= 2 ? (
+            <>
+              <div dir="ltr" aria-label="رمز الاستلام" className="mx-auto mt-4 w-fit rounded-card border-2 border-dashed border-accent/50 bg-accent-light px-6 py-3 text-4xl font-bold tracking-[0.4em] tabular-nums">{code ?? '····'}</div>
+              <p className="mt-3 text-xs text-muted">اعطِه للمندوب عند الاستلام بس. الجمعية ما تشوف هذا الرمز.</p>
+            </>
+          ) : (
+            <p className="mt-3 text-sm text-muted">يظهر رمز الاستلام هنا بعد موافقة الجمعية</p>
+          )}
         </section>
       </div>
     </AppShell>

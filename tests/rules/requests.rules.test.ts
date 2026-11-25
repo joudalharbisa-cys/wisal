@@ -93,9 +93,14 @@ describe('creating requests', () => {
 })
 
 describe('reading requests', () => {
-  it('owner reads own request and code', async () => {
+  it('owner reads own request but not the code before approval', async () => {
     await seedRequest()
     await assertSucceeds(user('h1').doc('requests/r1').get())
+    await assertFails(user('h1').doc('requestSecrets/r1').get())
+  })
+  it('owner reads the code once the charity approved', async () => {
+    await seed('requests/r1', stored({ status: 2 }))
+    await seed('requestSecrets/r1', { code: '4827', hospitalId: 'h1' })
     await assertSucceeds(user('h1').doc('requestSecrets/r1').get())
   })
   it('other hospital cannot read request or code', async () => {

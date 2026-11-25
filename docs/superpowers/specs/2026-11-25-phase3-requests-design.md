@@ -150,6 +150,13 @@ Fake implementation mirrors the rules, as in phases 1–2.
 - Nominatim usage policy: ≤ 1 request/second, attribution already shown on the map.
 - Everything installs to D:.
 
+## Changes after the first live test (2026-11-25, user)
+
+- **Receipt code appears only after the charity approves.** It is still created with the request (so the hospital needn't be online at approval), but rules let the hospital read `requestSecrets/{id}` only when the request's status ≥ 2; the sent screen and details say «يظهر رمز الاستلام بعد موافقة الجمعية».
+- **Phone:** digits only as typed (Arabic-Indic converted), must start with 05 and be exactly 10 digits; `+966…` is no longer converted.
+- **Quantity and beneficiaries:** digits only as typed (also the stock dialog quantity).
+- **Deadline:** a calendar (no typing); only days from today to the same day next year can be picked, and validation enforces the same range.
+
 ## Calls made after the builder check
 
 - **Every request gets a receipt code at creation, open requests included** (tech plan: the code is made when the request is created so the hospital needn't be online later). The request create rule also requires `existsAfter(requestSecrets/{id})`; the open-request success screen shows the code too.

@@ -40,6 +40,14 @@ describe('fake requests', () => {
     expect(code).toMatch(/^\d{4}$/)
     const r = await watch<HospitalRequest | null>(cb => s.requests.watchOne(id, cb))()
     expect(r).toMatchObject({ status: 1, charityId: 'c1', itemName: 'كراسي متحركة', qty: 40, hospitalName: H.name })
+    expect(code).toMatch(/^\d{4}$/)
+    expect(await watch<string | null>(cb => s.requests.watchCode(id, cb))()).toBeNull()
+  })
+
+  it('the code shows only after the charity approved', async () => {
+    const s = make()
+    const { id, code } = await s.requests.send(H, REQ, { charityId: 'c1', charityName: 'جمعية البر', warehouseId: 'wc' })
+    s._state.requests.set(id, { ...s._state.requests.get(id)!, status: 2 })
     expect(await watch<string | null>(cb => s.requests.watchCode(id, cb))()).toBe(code)
   })
 

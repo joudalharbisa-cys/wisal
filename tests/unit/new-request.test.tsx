@@ -82,7 +82,8 @@ describe('new request', () => {
     await user.click(screen.getByRole('button', { name: 'اختر جمعية البر بجدة' }))
     await user.click(screen.getByRole('button', { name: 'أرسل الطلب لـجمعية البر بجدة' }))
     expect(await screen.findByRole('heading', { name: 'وصل طلبك لـجمعية البر بجدة' })).toBeInTheDocument()
-    expect(screen.getByLabelText('رمز الاستلام').textContent).toMatch(/^\d{4}$/)
+    expect(screen.getByText('رمز الاستلام يظهر لك بعد موافقة الجمعية')).toBeInTheDocument()
+    expect(screen.queryByLabelText('رمز الاستلام')).not.toBeInTheDocument()
     const [r] = [...s._state.requests.values()]
     expect(r).toMatchObject({ status: 1, charityId: 'c1', warehouseId: 'w1', qty: 40, priority: 'urgent', receiver: { phone: '0551234567' }, delivery: { district: 'الشرفية' } })
   })

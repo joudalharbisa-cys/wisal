@@ -256,7 +256,8 @@ export function createFakeServices(seed: Seed = {}) {
         return listenReq(() => cb(mineOrNull(id)), onError)
       },
       watchCode(id, cb, onError) {
-        return listenReq(() => cb(mineOrNull(id) ? state.codes.get(id) ?? null : null), onError)
+        // Like the rules: the code is readable only after the charity approved (status ≥ 2).
+        return listenReq(() => { const r = mineOrNull(id); cb(r && r.status >= 2 ? state.codes.get(id) ?? null : null) }, onError)
       },
       async loadCandidates(itemId) {
         if (seed.failures?.requests) throw new ServiceError('network')

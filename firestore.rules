@@ -88,7 +88,9 @@ service cloud.firestore {
         && request.resource.data.hospitalId == request.auth.uid
         && request.resource.data.code is string && request.resource.data.code.matches('^[0-9]{4}$')
         && getAfter(/databases/$(database)/documents/requests/$(rid)).data.hospitalId == request.auth.uid;
-      allow read: if signedIn() && resource.data.hospitalId == request.auth.uid;
+      // The hospital sees its code only once the charity has approved (status ≥ 2). Charities never read it.
+      allow read: if signedIn() && resource.data.hospitalId == request.auth.uid
+        && get(/databases/$(database)/documents/requests/$(rid)).data.status >= 2;
     }
 
     // Collection-group reads (phase 4 ranking): hospitals query charity rows only (where orgRole == 'charity').
