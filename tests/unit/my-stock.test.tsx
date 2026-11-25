@@ -20,7 +20,7 @@ const row = (w: Warehouse, item: { key: string; name: string }, condition: 'new'
 
 function renderAt(seed: Partial<Parameters<typeof createFakeServices>[0]> = {}) {
   const s = createFakeServices({ users: [{ uid: 'c1', email: 'c@test.sa', password: 'x' }], orgs: { c1: ORG }, signedIn: 'c1', ...seed })
-  render(<ServicesProvider services={s}><MemoryRouter initialEntries={['/app']}><App /></MemoryRouter></ServicesProvider>)
+  render(<ServicesProvider services={s}><MemoryRouter initialEntries={['/app/stock']}><App /></MemoryRouter></ServicesProvider>)
   return { s, user: userEvent.setup() }
 }
 
@@ -82,14 +82,14 @@ describe('my stock page', () => {
 
   it('nav shows مخزوني and no shared stock page', async () => {
     renderAt()
-    expect(await screen.findByRole('link', { name: 'مخزوني' })).toHaveAttribute('href', '/app')
+    expect(await screen.findByRole('link', { name: 'مخزوني' })).toHaveAttribute('href', '/app/stock')
     expect(screen.queryByRole('link', { name: 'مخزون الجهات' })).not.toBeInTheDocument()
   })
 
-  it('the old shared stock address leads back to مخزوني', async () => {
+  it('the old shared stock address leads back to the charity home', async () => {
     const s = createFakeServices({ users: [{ uid: 'c1', email: 'c@test.sa', password: 'x' }], orgs: { c1: ORG }, signedIn: 'c1' })
     render(<ServicesProvider services={s}><MemoryRouter initialEntries={['/app/network']}><App /></MemoryRouter></ServicesProvider>)
-    expect(await screen.findByRole('heading', { name: 'مخزوني' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'الطلبات الواردة' })).toBeInTheDocument()
   })
 
   it('charity copy says hospitals see the stock when they request', async () => {

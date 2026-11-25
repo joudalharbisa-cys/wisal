@@ -26,10 +26,10 @@ it('approved hospital sees its home and can sign out to the login page', async (
   expect(await screen.findByRole('heading', { name: 'تسجيل الدخول' })).toBeInTheDocument()
 })
 
-it('approved charity lands on its stock with the first-warehouse prompt', async () => {
+it('approved charity lands on its incoming requests', async () => {
   const s = createFakeServices({ users: [{ uid: 'c1', email: 'c@test.sa', password: 'x' }], orgs: { c1: org('charity', 'جمعية الشمال') }, signedIn: 'c1' })
   renderApp('/app', s)
-  expect(await screen.findByRole('heading', { name: 'ابدأ بإضافة أول مستودع' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'الطلبات الواردة' })).toBeInTheDocument()
 })
 
 it('root path sends an anonymous visitor to login', async () => {

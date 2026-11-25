@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import { Building2, HandHeart, LogOut, ShieldCheck } from 'lucide-react'
 import BrandBand from '../components/brand/BrandBand'
@@ -6,12 +6,16 @@ import LogoMark from '../components/brand/LogoMark'
 import { useServices } from '../services/ServicesContext'
 import { useCurrentSession } from '../session/Guard'
 
-type NavItem = { to: string; label: string; end?: boolean }
+type NavItem = { to: string; label: string; end?: boolean; badge?: number }
 
 /** Signed-in frame (approved identity, style B): brand band, top nav, white cards floating over the band. */
 export default function AppShell({ title, sub, action, tall = false, children }: { title: string; sub?: ReactNode; action?: ReactNode; tall?: boolean; children: ReactNode }) {
-  const { auth } = useServices()
+  const { auth, requests } = useServices()
   const session = useCurrentSession()
+  const charityId = session.kind === 'member' && session.org?.role === 'charity' && session.org.status === 'approved' ? session.user.uid : ''
+  const [waiting, setWaiting] = useState(0)
+  // Charities see how many requests wait for their answer, on every page.
+  useEffect(() => (charityId ? requests.watchIncoming(charityId, l => setWaiting(l.filter(r => r.status === 1).length)) : undefined), [requests, charityId])
 
   let who = { label: '', icon: Building2 }
   let nav: NavItem[] = []
@@ -23,7 +27,7 @@ export default function AppShell({ title, sub, action, tall = false, children }:
     if (session.org.status === 'approved')
       nav = session.org.role === 'hospital'
         ? [{ to: '/app', label: 'طلباتي', end: true }, { to: '/app/stock', label: 'مخزوني' }]
-        : [{ to: '/app', label: 'مخزوني', end: true }]
+        : [{ to: '/app', label: 'الطلبات الواردة', end: true, badge: waiting }, { to: '/app/stock', label: 'مخزوني' }]
   }
   const WhoIcon = who.icon
 
@@ -35,8 +39,9 @@ export default function AppShell({ title, sub, action, tall = false, children }:
           <div className="flex items-center gap-2.5"><LogoMark /><span className="text-lg font-bold">وصال</span></div>
           <nav className="flex flex-wrap gap-1 text-sm">
             {nav.map(n => (
-              <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `rounded-full px-3.5 py-1.5 transition ${isActive ? 'bg-white/15 font-medium' : 'text-white/70 hover:text-white'}`}>
+              <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `flex items-center gap-1.5 rounded-full px-3.5 py-1.5 transition ${isActive ? 'bg-white/15 font-medium' : 'text-white/70 hover:text-white'}`}>
                 {n.label}
+                {!!n.badge && <span className="grid size-5 place-items-center rounded-full bg-accent text-[11px] font-bold text-white tabular-nums">{n.badge}</span>}
               </NavLink>
             ))}
           </nav>

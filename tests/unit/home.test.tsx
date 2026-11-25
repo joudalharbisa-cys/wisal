@@ -23,9 +23,10 @@ it('hospital stock page lives at /app/stock', async () => {
   expect(await screen.findByRole('heading', { name: 'مخزوني' })).toBeInTheDocument()
 })
 
-it('charity home stays مخزوني and has no طلباتي link', async () => {
+it('charity home is الطلبات الواردة with مخزوني in the nav and no طلباتي link', async () => {
   renderAs('charity')
-  expect(await screen.findByRole('heading', { name: 'مخزوني' })).toBeInTheDocument()
-  expect(screen.getByRole('link', { name: 'مخزوني' })).toHaveAttribute('href', '/app')
+  expect(await screen.findByRole('heading', { name: 'الطلبات الواردة' })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: /الطلبات الواردة/ })).toHaveAttribute('href', '/app')
+  expect(screen.getByRole('link', { name: 'مخزوني' })).toHaveAttribute('href', '/app/stock')
   expect(screen.queryByRole('link', { name: 'طلباتي' })).not.toBeInTheDocument()
 })
