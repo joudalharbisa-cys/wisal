@@ -1,10 +1,10 @@
 import { PRIORITY_LABEL, type Priority } from '../../lib/labels'
 
-// `pill`: tinted background behind the selected word so it reads clearly on the light card.
+// `pill`: solid light background behind the selected word so it reads clearly.
 const OPTIONS: { value: Priority; hint: string; dot: string; on: string; pill: string }[] = [
-  { value: 'urgent', hint: 'خلال 6 ساعات', dot: 'bg-urgent', on: 'border-urgent bg-urgent/5 ring-1 ring-urgent text-urgent', pill: 'bg-urgent/15' },
-  { value: 'medium', hint: 'خلال يوم', dot: 'bg-medium', on: 'border-medium bg-medium/5 ring-1 ring-medium text-medium', pill: 'bg-medium/15' },
-  { value: 'normal', hint: 'خلال 3 أيام', dot: 'bg-normal', on: 'border-normal bg-normal/5 ring-1 ring-normal text-normal', pill: 'bg-normal/15' },
+  { value: 'urgent', hint: 'خلال 6 ساعات', dot: 'bg-urgent', on: 'border-urgent bg-urgent/5 ring-1 ring-urgent text-urgent', pill: 'bg-[#FEECEC]' },
+  { value: 'medium', hint: 'خلال يوم', dot: 'bg-medium', on: 'border-medium bg-medium/5 ring-1 ring-medium text-medium', pill: 'bg-[#FFF1E6]' },
+  { value: 'normal', hint: 'خلال 3 أيام', dot: 'bg-normal', on: 'border-normal bg-normal/5 ring-1 ring-normal text-normal', pill: 'bg-[#E8F6EC]' },
 ]
 
 /** Three priority cards in the priority colours (radiogroup). */

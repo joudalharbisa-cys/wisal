@@ -58,9 +58,11 @@ it('Table renders column headers and cells', () => {
   expect(screen.getByRole('cell', { name: '40' })).toBeInTheDocument()
 })
 
-it('PriorityBadge is a soft tinted pill', () => {
-  render(<PriorityBadge priority="urgent" />)
-  expect(screen.getByText('عاجلة').className).toContain('bg-urgent/10')
+it('PriorityBadge is a solid light pill (readable on the green band too)', () => {
+  render(<><PriorityBadge priority="urgent" /><PriorityBadge priority="medium" /></>)
+  expect(screen.getByText('عاجلة').className).toContain('bg-[#FEECEC]')
+  expect(screen.getByText('متوسطة').className).toContain('bg-[#FFF1E6]')
+  expect(screen.getByText('متوسطة').className).not.toMatch(/bg-medium\/\d+/)
 })
 
 it('Button loading disables and announces busy', () => {

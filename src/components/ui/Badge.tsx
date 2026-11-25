@@ -2,11 +2,11 @@ import { PRIORITY_LABEL, STATUS_LABEL, type Priority, type RequestStatus } from 
 import { CONDITION_LABEL, type Condition } from '../../features/inventory/types'
 import type { OrgRole } from '../../features/orgs/types'
 
-// Literal class strings so Tailwind generates them. Soft tint + colored text + dot.
+// Literal class strings so Tailwind generates them. Priority badges use solid light fills (they also sit on the green band).
 const PRIORITY_CLASS: Record<Priority, [string, string]> = {
-  urgent: ['bg-urgent/10 text-urgent ring-urgent/20', 'bg-urgent'],
-  medium: ['bg-medium/15 text-medium ring-medium/30', 'bg-medium'],
-  normal: ['bg-normal/10 text-normal ring-normal/20', 'bg-normal'],
+  urgent: ['bg-[#FEECEC] text-urgent ring-urgent/30', 'bg-urgent'],
+  medium: ['bg-[#FFF1E6] text-medium ring-medium/30', 'bg-medium'],
+  normal: ['bg-[#E8F6EC] text-normal ring-normal/30', 'bg-normal'],
 }
 
 const STATUS_CLASS: Record<RequestStatus, [string, string]> = {
