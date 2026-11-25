@@ -130,8 +130,85 @@ service cloud.firestore {
           && d.status == 0 && d.open == true && d.publishedAt == request.time && d.updatedAt == request.time
           && changed().hasOnly(['open', 'publishedAt', 'updatedAt']);
       }
+      // Phase 6+7 (spec: 2026-11-26-phase6-delivery-design.md): forward steps by the accepting charity,
+      // the hospital's pickup courier, an optional meeting, and the counted receipt-code check.
+      function isAcceptingCharity() { return resource.data.get('charityId', null) == request.auth.uid && isApprovedCharity(); }
+      function isOwningHospital() { return resource.data.hospitalId == request.auth.uid && isApprovedHospital(); }
+      function validPerson(p) {
+        return p is map && p.keys().hasOnly(['name', 'phone', 'eta']) && p.keys().hasAll(['name', 'phone', 'eta'])
+          && isStr(p.name, 2, 60) && p.phone is string && p.phone.matches('^05[0-9]{8}$') && p.eta is timestamp;
+      }
+      function prepareOk(d) {         // 2 → 3; delivery or pickup from the charity's «تقدر توصّل»
+        return isAcceptingCharity() && resource.data.status == 2 && d.status == 3
+          && d.mode == (myOrg().get('canDeliver', false) == true ? 'delivery' : 'pickup')
+          && d.preparingAt == request.time && d.updatedAt == request.time
+          && changed().hasOnly(['status', 'mode', 'preparingAt', 'updatedAt']);
+      }
+      function outOk(d) {             // 3 → 4: out for delivery (with driver) or ready for pickup
+        return isAcceptingCharity() && resource.data.status == 3 && d.status == 4
+          && d.outAt == request.time && d.updatedAt == request.time
+          && ((resource.data.mode == 'delivery' && validPerson(d.driver)
+               && changed().hasOnly(['status', 'outAt', 'driver', 'updatedAt']))
+              || (resource.data.mode == 'pickup' && !('driver' in d)
+               && changed().hasOnly(['status', 'outAt', 'updatedAt'])));
+      }
+      function arrivedOk(d) {         // 4 → 5
+        return isAcceptingCharity() && resource.data.status == 4 && d.status == 5
+          && d.arrivedAt == request.time && d.updatedAt == request.time
+          && changed().hasOnly(['status', 'arrivedAt', 'updatedAt']);
+      }
+      function pickupOk(d) {          // hospital's courier, pickup only, from status 3
+        return isOwningHospital() && resource.data.get('mode', '') == 'pickup'
+          && resource.data.status >= 3 && resource.data.status <= 4
+          && validPerson(d.pickup) && d.updatedAt == request.time
+          && changed().hasOnly(['pickup', 'updatedAt']);
+      }
+      function meetingOk(d) {         // either side, statuses 2–5; remove by omitting `meeting`
+        let hosp = isOwningHospital();
+        let char = isAcceptingCharity();
+        return (hosp || char) && resource.data.status >= 2 && resource.data.status <= 5
+          && d.updatedAt == request.time && changed().hasOnly(['meeting', 'updatedAt'])
+          && (!('meeting' in d)
+              || (d.meeting is map
+                  && d.meeting.keys().hasOnly(['at', 'link', 'byRole', 'byName']) && d.meeting.keys().hasAll(['at', 'link', 'byRole', 'byName'])
+                  && d.meeting.at is timestamp && isStr(d.meeting.link, 10, 300) && d.meeting.link.matches('^https://.+')
+                  && ((hosp && d.meeting.byRole == 'hospital') || (char && d.meeting.byRole == 'charity'))
+                  && d.meeting.byName == myOrg().name));
+      }
+      function attemptOk(d) {         // every guess is stored and counted first (max 5 until the hospital unlocks)
+        return isAcceptingCharity() && resource.data.status == 5 && d.status == 5
+          && resource.data.get('codeFails', 0) < 5 && d.codeFails == resource.data.get('codeFails', 0) + 1
+          && d.codeAttempt is string && d.codeAttempt.matches('^[0-9]{4}$')
+          && d.updatedAt == request.time && changed().hasOnly(['codeAttempt', 'codeFails', 'updatedAt']);
+      }
+      function stockRow(sid) { return /databases/$(database)/documents/orgs/$(request.auth.uid)/stock/$(sid); }
+      function deducted(sid, n) {
+        return getAfter(stockRow(sid)).data.qty == get(stockRow(sid)).data.qty - n
+          && getAfter(stockRow(sid)).data.reserved == get(stockRow(sid)).data.reserved - n;
+      }
+      function deductionOk(res) {     // the reserved rows (new / used of this warehouse) fall by what was held
+        let base = resource.data.warehouseId + '__' + resource.data.itemId;
+        return res.keys().hasOnly([base + '__new', base + '__used'])
+          && (!((base + '__new') in res) || deducted(base + '__new', res[base + '__new']))
+          && (!((base + '__used') in res) || deducted(base + '__used', res[base + '__used']));
+      }
+      function verifyOk(d) {          // 5 → 6 only with the stored attempt == the hospital's code, plus the deduction
+        return isAcceptingCharity() && resource.data.status == 5 && d.status == 6
+          && resource.data.get('codeAttempt', '') == get(/databases/$(database)/documents/requestSecrets/$(rid)).data.code
+          && d.verifiedAt == request.time && d.updatedAt == request.time
+          && changed().hasOnly(['status', 'verifiedAt', 'updatedAt'])
+          && deductionOk(resource.data.reservation);
+      }
+      function unlockOk(d) {          // the hospital re-opens code entry after 5 counted attempts
+        return isOwningHospital() && resource.data.status == 5 && resource.data.get('codeFails', 0) >= 5
+          && d.codeFails == 0 && d.updatedAt == request.time && changed().hasOnly(['codeFails', 'updatedAt']);
+      }
+
       allow update: if signedIn() && (acceptOk(request.resource.data) || rejectOk(request.resource.data)
-        || takeOk(request.resource.data) || chooseAgainOk(request.resource.data) || publishOk(request.resource.data));
+        || takeOk(request.resource.data) || chooseAgainOk(request.resource.data) || publishOk(request.resource.data)
+        || prepareOk(request.resource.data) || outOk(request.resource.data) || arrivedOk(request.resource.data)
+        || pickupOk(request.resource.data) || meetingOk(request.resource.data) || attemptOk(request.resource.data)
+        || verifyOk(request.resource.data) || unlockOk(request.resource.data));
     }
 
     match /requestSecrets/{rid} {
