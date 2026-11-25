@@ -28,7 +28,8 @@ const common = {
 }
 const sent = (over: Record<string, unknown> = {}) => ({ ...common, status: 1, open: false, charityId: 'c1', charityName: 'جمعية البر', warehouseId: 'wc', ...over })
 const openReq = (over: Record<string, unknown> = {}) => ({ ...common, status: 0, open: true, ...over })
-const rejected = (over: Record<string, unknown> = {}) => ({ ...common, status: 0, open: false, excluded: ['c1'], lastRejection: { charityName: 'جمعية البر', reason: 'محجوز', at: new Date() }, ...over })
+const LAST = { charityName: 'جمعية البر', reason: 'محجوز', at: new Date(2026, 10, 25, 10) }
+const rejected = (over: Record<string, unknown> = {}) => ({ ...common, status: 0, open: false, excluded: ['c1'], lastRejection: LAST, ...over })
 
 beforeEach(async () => {
   await env.clearFirestore()
@@ -135,21 +136,41 @@ describe('open requests', () => {
 })
 
 describe('hospital after a rejection', () => {
-  it('hospital chooses another charity after a rejection', async () => {
+  // Moving on takes the rejection off the request (other charities may read it) into the hospital-only history doc.
+  const moveOn = (change: Record<string, unknown>, history: Record<string, unknown> | null = { hospitalId: 'h1', lastRejection: LAST }) => {
+    const db = user('h1')
+    const b = db.batch()
+    b.update(db.doc('requests/r1'), { ...change, lastRejection: del() })
+    if (history) b.set(db.doc('requestHistory/r1'), history)
+    return b.commit()
+  }
+  const CHOOSE = { status: 1, charityId: 'c2', charityName: 'جمعية الشمال', warehouseId: 'w2', sentAt: ts(), updatedAt: ts() }
+  it('hospital chooses another charity after a rejection, moving the rejection to its history', async () => {
     await seed('requests/r1', rejected())
-    await assertSucceeds(r('h1').update({ status: 1, charityId: 'c2', charityName: 'جمعية الشمال', warehouseId: 'w2', sentAt: ts(), updatedAt: ts() }))
+    await assertFails(r('h1').update(CHOOSE))
+    await assertFails(moveOn(CHOOSE, null))
+    await assertFails(moveOn(CHOOSE, { hospitalId: 'h1', lastRejection: { ...LAST, reason: 'مزور' } }))
+    await assertSucceeds(moveOn(CHOOSE))
+  })
+  it('the history is readable by the hospital only', async () => {
+    await seed('requests/r1', rejected())
+    await moveOn(CHOOSE)
+    await assertSucceeds(user('h1').doc('requestHistory/r1').get())
+    await assertFails(user('c2').doc('requestHistory/r1').get())
+    await assertFails(user('c1').doc('requestHistory/r1').get())
+    await assertFails(user('c2').doc('requestHistory/r1').set({ hospitalId: 'h1', lastRejection: LAST }))
   })
   it('hospital cannot choose a pending charity', async () => {
     await seed('requests/r1', rejected())
     await assertFails(r('h1').update({ status: 1, charityId: 'pc', charityName: 'جمعية جديدة', warehouseId: 'wp', sentAt: ts(), updatedAt: ts() }))
   })
-  it('hospital publishes a rejected request as open', async () => {
+  it('hospital publishes a rejected request as open, and other charities no longer see the rejection', async () => {
     await seed('requests/r1', rejected())
-    await assertSucceeds(r('h1').update({ open: true, publishedAt: ts(), updatedAt: ts() }))
-  })
-  it('the last rejection stays as history when the hospital moves on', async () => {
-    await seed('requests/r1', rejected())
-    await assertFails(r('h1').update({ open: true, publishedAt: ts(), lastRejection: del(), updatedAt: ts() }))
+    const PUBLISH = { open: true, publishedAt: ts(), updatedAt: ts() }
+    await assertFails(r('h1').update(PUBLISH))
+    await assertSucceeds(moveOn(PUBLISH))
+    const seen = await user('c2').doc('requests/r1').get()
+    if (seen.data()?.lastRejection) throw new Error('open request still carries the rejection')
   })
   it('charity cannot publish', async () => {
     await seed('requests/r1', rejected())

@@ -61,6 +61,8 @@ describe('after a rejection', () => {
     await user.click(await screen.findByRole('button', { name: 'انشره كطلب مفتوح' }))
     expect(await screen.findByText('طلب مفتوح', { selector: '[data-testid="status-badge"]' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'رفضت جمعية الشمال الطلب' })).not.toBeInTheDocument()
+    // The rejection left the request but stays in the hospital's own timeline.
+    expect(await within(screen.getByRole('list', { name: 'مراحل الطلب' })).findByText('رفضت جمعية الشمال الطلب')).toBeInTheDocument()
   })
 
   it('the list marks it as waiting for the hospital', async () => {

@@ -75,6 +75,11 @@ describe('incoming requests on the emulator', () => {
     expect(back).toMatchObject({ open: false, excluded: [C2.me.uid], lastRejection: { charityName: 'جمعية الشمال', reason: 'مشغولين' } })
     expect((await next<HospitalRequest[]>(cb => C1.s.requests.watchOpen(cb), () => true)).some(r => r.id === id)).toBe(false)
     await H.s.requests.publishOpen(H.me, id)
+    const listed = await next<HospitalRequest[]>(cb => C1.s.requests.watchOpen(cb), l => l.some(r => r.id === id))
+    // Other charities see the open request but not who rejected it or why; the hospital keeps it in its history.
+    expect(listed.find(r => r.id === id)?.lastRejection).toBeUndefined()
+    expect(await next(cb => H.s.requests.watchRejection(id, cb), x => !!x)).toMatchObject({ charityName: 'جمعية الشمال', reason: 'مشغولين' })
+    expect(await next(cb => C1.s.requests.watchRejection(id, cb), () => true)).toBeNull()
     expect((await next<HospitalRequest[]>(cb => C2.s.requests.watchOpen(cb), l => l.some(r => r.id === id))).length).toBeGreaterThan(0)
     // The charity that rejected may take it now that it's open.
     await C2.s.requests.accept(C2.me, id, C2.wh!.id)

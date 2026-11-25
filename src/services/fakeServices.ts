@@ -6,7 +6,7 @@ import { inSaudiBox, validateItemName } from '../features/inventory/validate'
 import { makeReceiptCode } from '../features/requests/code'
 import { planReservation } from '../features/requests/reserve'
 import { parsePhone, toWesternDigits } from '../features/requests/validate'
-import type { Contact, HospitalRequest } from '../features/requests/types'
+import type { Contact, HospitalRequest, Rejection } from '../features/requests/types'
 import { applicationFields, resolveItem, ServiceError, type AuthUser, type Services } from './types'
 
 type Seed = {
@@ -39,6 +39,7 @@ export function createFakeServices(seed: Seed = {}) {
     requests: new Map<string, HospitalRequest>((seed.requests ?? []).map(r => [r.id, r])),
     codes: new Map<string, string>(Object.entries(seed.codes ?? {})),
     contacts: new Map<string, { hospitalId: string } & Contact>(Object.entries(seed.contacts ?? {})),
+    history: new Map<string, { hospitalId: string; lastRejection: Rejection }>(),
   }
   if (seed.signedIn) {
     const u = state.users.find(x => x.uid === seed.signedIn)
@@ -92,6 +93,13 @@ export function createFakeServices(seed: Seed = {}) {
     invCbs.add(f)
     queueMicrotask(f)
     return () => { invCbs.delete(f) }
+  }
+  /** Like the rules: the rejection leaves the request (other charities may read it) for the hospital-only history. */
+  const moveRejection = (r: HospitalRequest): HospitalRequest => {
+    if (!r.lastRejection) return r
+    state.history.set(r.id, { hospitalId: r.hospitalId, lastRejection: r.lastRejection })
+    const { lastRejection: _moved, ...rest } = r
+    return rest
   }
   const mineOrNull = (id: string) => {
     const r = state.requests.get(id)
@@ -322,7 +330,7 @@ export function createFakeServices(seed: Seed = {}) {
         const c = state.orgs.get(choice.charityId)
         if (r.status !== 0 || c?.role !== 'charity' || c.status !== 'approved' || c.name !== choice.charityName) throw new ServiceError('invalid-transition', 'cannot choose')
         const t = now()
-        state.requests.set(id, { ...r, ...choice, status: 1, open: false, sentAt: t, updatedAt: t })
+        state.requests.set(id, { ...moveRejection(r), ...choice, status: 1, open: false, sentAt: t, updatedAt: t })
         emitInv()
       },
       async startPreparing(charity, id, canDeliver) {
@@ -397,8 +405,11 @@ export function createFakeServices(seed: Seed = {}) {
         const r = actingHospital(hospital, id)
         if (r.status !== 0 || r.open) throw new ServiceError('invalid-transition', 'not waiting')
         const t = now()
-        state.requests.set(id, { ...r, open: true, publishedAt: t, updatedAt: t })
+        state.requests.set(id, { ...moveRejection(r), open: true, publishedAt: t, updatedAt: t })
         emitInv()
+      },
+      watchRejection(id, cb) {
+        return listenReq(() => { const h = state.history.get(id); cb(h && h.hospitalId === state.current?.uid ? h.lastRejection : null) })
       },
       watchCode(id, cb, onError) {
         // Like the rules: the code is readable only after the charity approved (status ≥ 2).

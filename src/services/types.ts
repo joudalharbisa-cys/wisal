@@ -1,6 +1,6 @@
 import type { Org, OrgApplication, OrgWithId } from '../features/orgs/types'
 import type { Condition, Item, ItemChoice, LatLng, OrgRef, StockRow, Warehouse, WarehouseDraft } from '../features/inventory/types'
-import type { Candidates, CharityChoice, Contact, HospitalRequest, Person, ValidRequest } from '../features/requests/types'
+import type { Candidates, CharityChoice, Contact, HospitalRequest, Person, Rejection, ValidRequest } from '../features/requests/types'
 
 export type AuthUser = { uid: string; email: string }
 
@@ -59,6 +59,8 @@ export interface Services {
     watchCode(id: string, cb: (code: string | null) => void, onError?: (e: ServiceError) => void): Unsubscribe
     /** Receiver name/phone; null when not readable (other orgs, or a charity before accepting). */
     watchContact(id: string, cb: (c: Contact | null) => void, onError?: (e: ServiceError) => void): Unsubscribe
+    /** The latest rejection after the hospital moved on (hospital only; null otherwise). */
+    watchRejection(id: string, cb: (r: Rejection | null) => void): Unsubscribe
     /** Approved charities' stock rows for one product, with their warehouses and profiles. */
     loadCandidates(itemId: string): Promise<Candidates>
     /** Creates the product if needed, the request (status 1 with a charity, else 0 = open) and its receipt code. */
@@ -72,6 +74,7 @@ export interface Services {
     accept(charity: OrgRef, id: string, warehouseId: string): Promise<void>
     /** Send it back to the hospital (status 0, not open). */
     reject(charity: OrgRef, id: string, reason: string): Promise<void>
+    /** Both move the rejection off the request into the hospital-only history. */
     chooseAgain(hospital: OrgRef, id: string, choice: CharityChoice): Promise<void>
     publishOpen(hospital: OrgRef, id: string): Promise<void>
     /** 2 → 3; the mode (delivery / pickup) follows the charity's «تقدر توصّل». */

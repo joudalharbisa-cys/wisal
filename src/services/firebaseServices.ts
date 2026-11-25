@@ -63,6 +63,18 @@ async function wrap<T>(p: Promise<T>): Promise<T> {
 export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {}): Services {
   const auth = () => deps.auth ?? getAuthClient()
   const db = () => deps.db ?? getDb()
+  /** The hospital moves on after a rejection: the request change plus, if there is one, moving the rejection off the
+   *  request (other charities may read it) into the hospital-only requestHistory — one batch, as the rules require. */
+  const moveOn = async (id: string, change: Record<string, unknown>) => {
+    const ref = doc(db(), 'requests', id)
+    const raw = (await wrap(getDoc(ref))).data()
+    const batch = writeBatch(db())
+    if (raw?.lastRejection) {
+      batch.set(doc(db(), 'requestHistory', id), { hospitalId: raw.hospitalId, lastRejection: raw.lastRejection })
+      batch.update(ref, { ...change, lastRejection: deleteField() })
+    } else batch.update(ref, change)
+    await wrap(batch.commit())
+  }
   const snap = { serverTimestamps: 'estimate' } as const
 
   return {
@@ -242,6 +254,13 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
           e => (isDenied(e) ? cb(null) : onError?.(toServiceError(e))),
         )
       },
+      watchRejection(id, cb) {
+        return onSnapshot(
+          doc(db(), 'requestHistory', id),
+          s => { const lr = s.data()?.lastRejection; cb(lr ? { charityName: lr.charityName, reason: lr.reason, at: toDate(lr.at) } : null) },
+          () => cb(null),
+        )
+      },
       watchContact(id, cb, onError) {
         return onSnapshot(
           doc(db(), 'requestContacts', id),
@@ -311,7 +330,7 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
         }))
       },
       async chooseAgain(_hospital, id, choice) {
-        await wrap(updateDoc(doc(db(), 'requests', id), { status: 1, open: false, ...choice, sentAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+        await moveOn(id, { status: 1, open: false, ...choice, sentAt: serverTimestamp(), updatedAt: serverTimestamp() })
       },
       async startPreparing(_charity, id, canDeliver) {
         await wrap(updateDoc(doc(db(), 'requests', id), { status: 3, mode: canDeliver ? 'delivery' : 'pickup', preparingAt: serverTimestamp(), updatedAt: serverTimestamp() }))
@@ -368,7 +387,7 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
         }))
       },
       async publishOpen(_hospital, id) {
-        await wrap(updateDoc(doc(db(), 'requests', id), { open: true, publishedAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+        await moveOn(id, { open: true, publishedAt: serverTimestamp(), updatedAt: serverTimestamp() })
       },
       async loadCandidates(itemId) {
         const found = await wrap(getDocs(query(collectionGroup(db(), 'stock'), where('orgRole', '==', 'charity'), where('itemId', '==', itemId))))

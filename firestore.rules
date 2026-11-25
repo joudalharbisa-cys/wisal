@@ -118,17 +118,24 @@ service cloud.firestore {
           && d.reservation is map && d.acceptedAt == request.time && d.updatedAt == request.time
           && changed().hasOnly(['status', 'open', 'charityId', 'charityName', 'warehouseId', 'reservation', 'acceptedAt', 'updatedAt']);
       }
+      // The rejection stays on the request only while it waits for the hospital (readable by the hospital alone).
+      // When the hospital moves on, it leaves the request (other charities may read it) for the hospital-only history doc.
+      function movedToHistory(d) {
+        return !('lastRejection' in resource.data)
+          || (!('lastRejection' in d)
+              && getAfter(/databases/$(database)/documents/requestHistory/$(rid)).data.lastRejection == resource.data.lastRejection);
+      }
       function chooseAgainOk(d) {     // 0 → 1 by the hospital
         return resource.data.hospitalId == request.auth.uid && isApprovedHospital()
           && resource.data.status == 0 && d.status == 1 && d.open == false && charityOk(d)
-          && d.sentAt == request.time && d.updatedAt == request.time
-          && changed().hasOnly(['status', 'open', 'charityId', 'charityName', 'warehouseId', 'sentAt', 'updatedAt']);
+          && d.sentAt == request.time && d.updatedAt == request.time && movedToHistory(d)
+          && changed().hasOnly(['status', 'open', 'charityId', 'charityName', 'warehouseId', 'sentAt', 'lastRejection', 'updatedAt']);
       }
       function publishOk(d) {         // 0 waiting → 0 open by the hospital
         return resource.data.hospitalId == request.auth.uid && isApprovedHospital()
           && resource.data.status == 0 && resource.data.open == false
-          && d.status == 0 && d.open == true && d.publishedAt == request.time && d.updatedAt == request.time
-          && changed().hasOnly(['open', 'publishedAt', 'updatedAt']);
+          && d.status == 0 && d.open == true && d.publishedAt == request.time && d.updatedAt == request.time && movedToHistory(d)
+          && changed().hasOnly(['open', 'publishedAt', 'lastRejection', 'updatedAt']);
       }
       // Phase 6+7 (spec: 2026-11-26-phase6-delivery-design.md): forward steps by the accepting charity,
       // the hospital's pickup courier, an optional meeting, and the counted receipt-code check.
@@ -221,6 +228,16 @@ service cloud.firestore {
       // The hospital sees its code only once the charity has approved (status ≥ 2). Charities never read it.
       allow read: if signedIn() && resource.data.hospitalId == request.auth.uid
         && get(/databases/$(database)/documents/requests/$(rid)).data.status >= 2;
+    }
+
+    // The latest rejection once the hospital moved on (phase 6 timeline): the hospital only.
+    match /requestHistory/{rid} {
+      allow read: if signedIn() && resource.data.hospitalId == request.auth.uid;
+      allow create, update: if isApprovedHospital()
+        && request.resource.data.keys().hasOnly(['hospitalId', 'lastRejection'])
+        && request.resource.data.keys().hasAll(['hospitalId', 'lastRejection'])
+        && request.resource.data.hospitalId == request.auth.uid
+        && get(/databases/$(database)/documents/requests/$(rid)).data.hospitalId == request.auth.uid;
     }
 
     // Receiver name/phone, apart from the request: the hospital, and the charity once it has accepted.

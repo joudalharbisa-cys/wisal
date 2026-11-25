@@ -97,7 +97,11 @@ describe('fake incoming', () => {
     await as(s, 'c1'); await s.requests.reject(C1, id, '')
     await as(s, 'h1'); await s.requests.chooseAgain(H, id, { charityId: 'c2', charityName: C2.name, warehouseId: 'wb' })
     expect(reqOf(s, id)).toMatchObject({ status: 1, open: false, charityId: 'c2' })
-    expect(reqOf(s, id).lastRejection?.charityName).toBe(C1.name) // kept as history
+    expect(reqOf(s, id).lastRejection).toBeUndefined() // moved off the request (other charities can read it)
+    const seen: unknown[] = []
+    s.requests.watchRejection(id, x => seen.push(x))
+    await new Promise(r => setTimeout(r, 0))
+    expect(seen.at(-1)).toMatchObject({ charityName: C1.name })
     expect(reqOf(s, id).sentAt).toBeInstanceOf(Date)
   })
 

@@ -51,7 +51,8 @@ export type HospitalRequest = {
   open: boolean
   /** Charities that rejected this request (history). */
   excluded: string[]
-  lastRejection?: { charityName: string; reason: string; at: Date }
+  /** Only while waiting for the hospital (status 0, not open); afterwards it lives in the hospital-only history. */
+  lastRejection?: Rejection
   /** stockId → quantity held, set when a charity accepts. */
   reservation?: Record<string, number>
   acceptedAt?: Date
@@ -76,6 +77,8 @@ export type HospitalRequest = {
   createdAt: Date
   updatedAt: Date
 }
+
+export type Rejection = { charityName: string; reason: string; at: Date }
 
 /** Receiver details, kept apart from the request: the hospital, and the charity once it accepts. */
 export type Contact = { name: string; phone: string }

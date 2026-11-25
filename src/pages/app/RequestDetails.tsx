@@ -6,7 +6,7 @@ import { PriorityBadge } from '../../components/ui/Badge'
 import Spinner from '../../components/ui/Spinner'
 import { STATUS_SHORT, type RequestStatus } from '../../lib/labels'
 import { longDate, RequestStatusBadge } from '../../features/requests/RequestStatus'
-import { ACCEPT_LABEL, type Contact, type HospitalRequest, type Ranked } from '../../features/requests/types'
+import { ACCEPT_LABEL, type Contact, type HospitalRequest, type Ranked, type Rejection } from '../../features/requests/types'
 import { rankCharities } from '../../features/requests/rank'
 import RankingList from '../../features/requests/RankingList'
 import HospitalDelivery, { CodeLockNotice } from '../../features/requests/HospitalDelivery'
@@ -35,6 +35,7 @@ export default function RequestDetails() {
   const [r, setR] = useState<HospitalRequest | null | undefined>(undefined)
   const [code, setCode] = useState<string | null>(null)
   const [contact, setContact] = useState<Contact | null>(null)
+  const [pastRejection, setPastRejection] = useState<Rejection | null>(null)
   const [failed, setFailed] = useState(false)
   const [ranked, setRanked] = useState<Ranked[] | null>(null)
   const [chosen, setChosen] = useState<string | null>(null)
@@ -45,6 +46,7 @@ export default function RequestDetails() {
 
   useEffect(() => requests.watchOne(id, setR, () => setFailed(true)), [requests, id])
   useEffect(() => requests.watchContact(id, setContact), [requests, id])
+  useEffect(() => requests.watchRejection(id, setPastRejection), [requests, id])
   // The code is readable only after approval; start listening when the status gets there.
   const approved = !!r && r.status >= 2
   useEffect(() => (approved ? requests.watchCode(id, setCode, () => setFailed(true)) : undefined), [requests, id, approved])
@@ -141,7 +143,7 @@ export default function RequestDetails() {
           {hospital && <CodeLockNotice r={r} me={hospital} />}
           <section className={`${CARD} p-6`}>
             <h2 className="mb-5 font-bold">سجل الطلب</h2>
-            <Timeline request={r} viewer="hospital" />
+            <Timeline request={r.lastRejection || !pastRejection ? r : { ...r, lastRejection: pastRejection }} viewer="hospital" />
           </section>
           {hospital && <MeetingCard request={r} me={hospital} />}
           <section className={`${CARD} grid gap-x-8 px-6 py-3 sm:grid-cols-2`}>
