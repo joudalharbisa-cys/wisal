@@ -24,6 +24,14 @@ export function parseDateInput(s: string): Date | null {
   return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d ? date : null
 }
 
+/** Meeting link, same bounds as the rules: https only, 10–300 characters, no spaces. */
+export const validLink = (s: string) => /^https:\/\/\S+$/.test(s) && s.length >= 10 && s.length <= 300
+
+/** «باقي N محاولات» with the natural singular/dual. */
+export function triesLeft(n: number): string {
+  return n === 1 ? 'باقي محاولة وحدة' : n === 2 ? 'باقي محاولتين' : `باقي ${n} محاولات`
+}
+
 /** The latest deadline a request may ask for: the same day next year. */
 export const lastAllowedDay = (today: Date) => new Date(today.getFullYear() + 1, today.getMonth(), today.getDate())
 

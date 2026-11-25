@@ -43,7 +43,7 @@ describe('incoming request page', () => {
     expect(await screen.findByRole('heading', { name: 'كراسي متحركة · 40' })).toBeInTheDocument()
     expect(screen.getByText(/بنحجز/)).toHaveTextContent('بنحجز 40 من المستودع الرئيسي')
     await user.click(screen.getByRole('button', { name: 'قبول' }))
-    expect(await screen.findByText(/قبلت الطلب/)).toHaveTextContent('المستودع الرئيسي')
+    expect(await screen.findByText(/قبلت الطلب، الكمية محجوزة/, { selector: 'p' })).toHaveTextContent('المستودع الرئيسي')
     expect(await screen.findByText('أحمد الغامدي')).toBeInTheDocument()
     expect(screen.getByText('0551234567')).toBeInTheDocument()
     expect(s._state.stock.get(`c1/wa__${CH.key}__new`)?.reserved).toBe(30)
@@ -68,7 +68,7 @@ describe('incoming request page', () => {
   it('taking an open request', async () => {
     const { s, user } = renderAt('r2')
     await user.click(await screen.findByRole('button', { name: 'أقبل الطلب' }))
-    expect(await screen.findByText(/قبلت الطلب/)).toBeInTheDocument()
+    expect(await screen.findByText(/قبلت الطلب، الكمية محجوزة/, { selector: 'p' })).toBeInTheDocument()
     expect(s._state.requests.get('r2')).toMatchObject({ status: 2, charityId: 'c1', warehouseId: 'wa' })
   })
 

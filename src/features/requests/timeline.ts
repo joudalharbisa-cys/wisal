@@ -18,7 +18,7 @@ export function formatTime(d: Date): string {
   return `${h}:${String(d.getMinutes()).padStart(2, '0')} ${d.getHours() < 12 ? 'ص' : 'م'}`
 }
 
-const person = (role: string, p: Person, when: string) => `${role}: ${p.name} · ${p.phone} · ${when} ${formatDateTime(p.eta)}`
+export const personLine = (role: string, p: Person, when: string) => `${role}: ${p.name} · ${p.phone} · ${when} ${formatDateTime(p.eta)}`
 
 /** Where the request went most recently: sent to a charity, or published as open. */
 function dispatch(r: HospitalRequest, viewer: Viewer): Step {
@@ -41,8 +41,8 @@ export function buildTimeline(r: HospitalRequest, viewer: Viewer): Step[] {
 
   const pickup = r.mode === 'pickup'
   const outNote = pickup
-    ? r.pickup && person('مندوب المستشفى', r.pickup, 'يجي')
-    : r.driver && person('السائق', r.driver, 'يوصل تقريبًا')
+    ? r.pickup && personLine('مندوب المستشفى', r.pickup, 'يجي')
+    : r.driver && personLine('السائق', r.driver, 'يوصل تقريبًا')
   steps.push(
     { label: viewer === 'charity' ? 'قبلت الطلب' : 'تمت الموافقة', at: r.acceptedAt },
     { label: 'بدأ التجهيز', at: r.preparingAt },

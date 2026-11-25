@@ -1,6 +1,6 @@
 import { useEffect, useId, useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
-import { CalendarDays, Check, CheckCircle2, MapPin, PackageCheck, Phone, UserRound, Users, Warehouse as WarehouseIcon, X } from 'lucide-react'
+import { CalendarDays, Check, MapPin, PackageCheck, Phone, UserRound, Users, Warehouse as WarehouseIcon, X } from 'lucide-react'
 import Alert from '../../components/ui/Alert'
 import { PriorityBadge } from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -12,6 +12,9 @@ import type { StockRow, Warehouse } from '../../features/inventory/types'
 import { formatKm, haversineKm } from '../../features/requests/rank'
 import { longDate, RequestStatusBadge } from '../../features/requests/RequestStatus'
 import { availableIn } from '../../features/requests/reserve'
+import CharityActions from '../../features/requests/CharityActions'
+import MeetingCard from '../../features/requests/MeetingCard'
+import Timeline from '../../features/requests/RequestTimeline'
 import { ACCEPT_LABEL, type Contact, type HospitalRequest } from '../../features/requests/types'
 import AppShell from '../../layout/AppShell'
 import { ServiceError } from '../../services/types'
@@ -108,10 +111,12 @@ export default function IncomingRequest() {
     }
   }
 
+  const me = { uid, name: org.name, role: org.role }
   const km = accWh ? haversineKm(r.delivery, accWh.location) : chosen?.km
   return (
     <AppShell title={`${r.itemName} · ${r.qty}`} sub={<span className="flex items-center gap-2"><PriorityBadge priority={r.priority} /> من {r.hospitalName}</span>}>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+        <div className="space-y-6">
         <section className={`${CARD} grid gap-x-8 px-6 py-3 sm:grid-cols-2`}>
           <Row icon={<CalendarDays className="size-4" />} label="يحتاجه قبل">{longDate(r.neededBy)}</Row>
           <Row icon={<Users className="size-4" />} label="عدد المستفيدين"><span className="tabular-nums">{r.beneficiaries}</span></Row>
@@ -123,16 +128,21 @@ export default function IncomingRequest() {
           {accepted && <Row icon={<UserRound className="size-4" />} label="المستلم">{(contact ?? r.legacyReceiver)?.name ?? '—'}</Row>}
           {accepted && <Row icon={<Phone className="size-4" />} label="الجوال"><span dir="ltr" className="tabular-nums">{(contact ?? r.legacyReceiver)?.phone ?? '—'}</span></Row>}
         </section>
+        {accepted && (
+          <section className={`${CARD} p-6`}>
+            <h2 className="mb-5 font-bold">سجل الطلب</h2>
+            <Timeline request={r} viewer="charity" />
+          </section>
+        )}
+        {accepted && <MeetingCard request={r} me={me} />}
+        </div>
 
         <section className={`${CARD} h-fit p-6`}>
-          <div className="flex items-center justify-between gap-3"><h2 className="font-bold">{accepted ? 'الطلب مقبول' : 'ردك على الطلب'}</h2><RequestStatusBadge status={r.status} /></div>
           {accepted ? (
-            <div className="mt-4 flex items-start gap-3 rounded-control bg-normal/10 p-3.5 text-sm">
-              <CheckCircle2 className="size-5 shrink-0 text-normal" aria-hidden />
-              <p>قبلت الطلب، الكمية محجوزة من {accWh?.name ?? 'مستودعك'}<span className="block text-xs text-muted">تواصل مع المستلم لترتيب التسليم.</span></p>
-            </div>
+            <CharityActions r={r} me={me} canDeliver={org.canDeliver === true} warehouseName={accWh?.name ?? 'مستودعك'} />
           ) : (
             <>
+              <div className="flex items-center justify-between gap-3"><h2 className="font-bold">ردك على الطلب</h2><RequestStatusBadge status={r.status} open={r.open} /></div>
               {chosen ? (
                 <>
                   {suitable.length > 1 && (
