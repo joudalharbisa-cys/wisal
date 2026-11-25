@@ -40,6 +40,15 @@ describe('warehouse form', () => {
     expect(await screen.findByRole('region', { name: 'مستودع الشرفية' })).toHaveTextContent('جدة، الشرفية')
   })
 
+  it('location can be typed instead of using the map', async () => {
+    const { user } = renderAt('/app/warehouses/new')
+    await fillValid(user)
+    await user.type(screen.getByRole('textbox', { name: 'خط العرض' }), '21.55')
+    await user.type(screen.getByRole('textbox', { name: 'خط الطول' }), '٣٩٫١٧')
+    await user.click(screen.getByRole('button', { name: 'حفظ المستودع' }))
+    expect(await screen.findByRole('region', { name: 'مستودع الشرفية' })).toBeInTheDocument()
+  })
+
   it('shows validation messages', async () => {
     const { user } = renderAt('/app/warehouses/new')
     await user.click(await screen.findByRole('button', { name: 'حفظ المستودع' }))
@@ -52,8 +61,8 @@ describe('warehouse form', () => {
     setGeo({ getCurrentPosition: (ok: PositionCallback) => ok({ coords: { latitude: 21.5012, longitude: 39.2234 } } as GeolocationPosition) } as Partial<Geolocation>)
     const { user } = renderAt('/app/warehouses/new')
     await user.click(await screen.findByRole('button', { name: 'موقعي الحالي' }))
-    expect(screen.getByText('خط العرض').nextSibling).toHaveTextContent('21.5012')
-    expect(screen.getByText('خط الطول').nextSibling).toHaveTextContent('39.2234')
+    expect(screen.getByRole('textbox', { name: 'خط العرض' })).toHaveValue('21.5012')
+    expect(screen.getByRole('textbox', { name: 'خط الطول' })).toHaveValue('39.2234')
   })
 
   it('denied location shows a message and keeps manual pin', async () => {
@@ -75,6 +84,11 @@ describe('warehouse form', () => {
     expect(d).toHaveTextContent('حذف المستودع ومعه 2 منتج؟')
     await user.click(within(d).getByRole('button', { name: 'حذف' }))
     expect(await screen.findByRole('heading', { name: 'ابدأ بإضافة أول مستودع' })).toBeInTheDocument()
+  })
+
+  it('edit page shows an error when the warehouse cannot load', async () => {
+    renderAt('/app/warehouses/w1', { warehouses: { h1: [W1] }, failures: { inventory: true } })
+    expect(await screen.findByText('تعذّر تحميل المخزون، تأكد من الاتصال وحاول مرة ثانية')).toBeInTheDocument()
   })
 
   it('unknown warehouse id shows not found', async () => {

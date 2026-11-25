@@ -144,16 +144,26 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
       },
     },
     inventory: {
-      watchItems(cb) {
-        return onSnapshot(collection(db(), 'items'), s => cb(s.docs.map(d => ({ key: d.id, name: d.data().name as string }))))
-      },
-      watchWarehouses(uid, cb) {
-        return onSnapshot(collection(db(), 'orgs', uid, 'warehouses'), s =>
-          cb(s.docs.map(d => toWarehouse(d.id, d.data(snap))).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())),
+      watchItems(cb, onError) {
+        return onSnapshot(
+          collection(db(), 'items'),
+          s => cb(s.docs.map(d => ({ key: d.id, name: d.data().name as string }))),
+          e => onError?.(toServiceError(e)),
         )
       },
-      watchStock(uid, cb) {
-        return onSnapshot(collection(db(), 'orgs', uid, 'stock'), s => cb(s.docs.map(d => toStockRow(d.id, d.data(snap)))))
+      watchWarehouses(uid, cb, onError) {
+        return onSnapshot(
+          collection(db(), 'orgs', uid, 'warehouses'),
+          s => cb(s.docs.map(d => toWarehouse(d.id, d.data(snap))).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())),
+          e => onError?.(toServiceError(e)),
+        )
+      },
+      watchStock(uid, cb, onError) {
+        return onSnapshot(
+          collection(db(), 'orgs', uid, 'stock'),
+          s => cb(s.docs.map(d => toStockRow(d.id, d.data(snap)))),
+          e => onError?.(toServiceError(e)),
+        )
       },
       watchAllStock(cb, onError) {
         return onSnapshot(

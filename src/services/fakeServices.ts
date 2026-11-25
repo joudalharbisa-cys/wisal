@@ -14,7 +14,7 @@ type Seed = {
   warehouses?: Record<string, Warehouse[]>
   stock?: StockRow[]
   /** Simulate backend failures in tests. */
-  failures?: { isAdmin?: boolean; watchOrg?: boolean; allStock?: boolean; save?: boolean }
+  failures?: { isAdmin?: boolean; watchOrg?: boolean; allStock?: boolean; save?: boolean; inventory?: boolean }
 }
 
 /** In-memory backend with the same transitions the security rules allow. Used by UI tests and local demos. */
@@ -64,7 +64,11 @@ export function createFakeServices(seed: Seed = {}) {
   // Inventory watchers: re-run every listener after any inventory change.
   const invCbs = new Set<() => void>()
   const emitInv = () => invCbs.forEach(f => f())
-  const listen = (f: () => void) => {
+  const listen = (f: () => void, onError?: (e: ServiceError) => void) => {
+    if (seed.failures?.inventory) {
+      queueMicrotask(() => onError?.(new ServiceError('network')))
+      return () => {}
+    }
     invCbs.add(f)
     queueMicrotask(f)
     return () => { invCbs.delete(f) }
@@ -158,14 +162,14 @@ export function createFakeServices(seed: Seed = {}) {
       },
     },
     inventory: {
-      watchItems(cb) {
-        return listen(() => cb([...state.items.values()]))
+      watchItems(cb, onError) {
+        return listen(() => cb([...state.items.values()]), onError)
       },
-      watchWarehouses(uid, cb) {
-        return listen(() => cb([...(state.warehouses.get(uid) ?? [])].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())))
+      watchWarehouses(uid, cb, onError) {
+        return listen(() => cb([...(state.warehouses.get(uid) ?? [])].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())), onError)
       },
-      watchStock(uid, cb) {
-        return listen(() => cb(rowsOf(uid)))
+      watchStock(uid, cb, onError) {
+        return listen(() => cb(rowsOf(uid)), onError)
       },
       watchAllStock(cb, onError) {
         if (seed.failures?.allStock) {

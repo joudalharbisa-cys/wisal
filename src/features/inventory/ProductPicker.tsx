@@ -14,11 +14,15 @@ export default function ProductPicker({ items, value, onChange, error }: { items
   const [open, setOpen] = useState(false)
   const [near, setNear] = useState<{ name: string; item: Item } | null>(null)
   const [nameError, setNameError] = useState<string>()
+  const [active, setActive] = useState(-1)
 
   const q = normalizeName(text)
   const matches = q ? all.filter(i => i.key.includes(q)).slice(0, 8) : []
   const exact = all.some(i => i.key === q)
   const showAdd = q.length > 0 && !exact
+  const count = matches.length + (showAdd ? 1 : 0)
+  const expanded = open && count > 0
+  const optId = (n: number) => `${id}-opt-${n}`
 
   const pick = (c: ItemChoice) => {
     setText(c.kind === 'existing' ? c.item.name : c.name)
@@ -36,6 +40,32 @@ export default function ProductPicker({ items, value, onChange, error }: { items
     else pick({ kind: 'new', name })
   }
 
+  const choose = (n: number) => (n < matches.length ? pick({ kind: 'existing', item: matches[n] }) : addNew())
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (!count) return
+      setOpen(true)
+      setActive(a => (e.key === 'ArrowDown' ? Math.min(a + 1, count - 1) : Math.max(a - 1, 0)))
+    } else if (e.key === 'Enter' && expanded && active >= 0) {
+      e.preventDefault()
+      choose(active)
+    } else if (e.key === 'Escape' && expanded) {
+      e.stopPropagation() // close the list, not the dialog
+      setOpen(false)
+    }
+  }
+  const onType = (v: string) => {
+    setText(v)
+    setOpen(true)
+    setActive(-1)
+    setNear(null)
+    setNameError(undefined)
+    // Typing a product's exact name selects it; no click needed.
+    const hit = all.find(i => i.key === normalizeName(v))
+    onChange(hit ? { kind: 'existing', item: hit } : null)
+  }
+
   const note = error ?? nameError
   return (
     <div>
@@ -45,7 +75,8 @@ export default function ProductPicker({ items, value, onChange, error }: { items
         <input
           id={id}
           role="combobox"
-          aria-expanded={open && (matches.length > 0 || showAdd)}
+          aria-expanded={expanded}
+          aria-activedescendant={expanded && active >= 0 ? optId(active) : undefined}
           aria-controls={`${id}-list`}
           aria-autocomplete="list"
           aria-invalid={note ? true : undefined}
@@ -53,19 +84,20 @@ export default function ProductPicker({ items, value, onChange, error }: { items
           autoComplete="off"
           placeholder="اكتب اسم المنتج"
           value={text}
-          onChange={e => { setText(e.target.value); setOpen(true); setNear(null); setNameError(undefined); onChange(null) }}
+          onChange={e => onType(e.target.value)}
+          onKeyDown={onKeyDown}
           onFocus={() => text && !value && setOpen(true)}
           className={`${inputClass} ps-9 ${note ? 'border-urgent focus:ring-urgent/15' : 'border-line focus:border-primary focus:ring-primary-light'}`}
         />
-        {open && (matches.length > 0 || showAdd) && (
+        {expanded && (
           <ul id={`${id}-list`} role="listbox" aria-label="المنتجات" className="absolute inset-x-0 top-full z-10 mt-1 max-h-64 overflow-auto rounded-control border border-line bg-white py-1 shadow-lg">
-            {matches.map(i => (
-              <li key={i.key} role="option" aria-selected={false} aria-label={i.name} onMouseDown={e => e.preventDefault()} onClick={() => pick({ kind: 'existing', item: i })}
-                className="cursor-pointer px-3 py-2 text-sm hover:bg-surface">{i.name}</li>
+            {matches.map((i, n) => (
+              <li key={i.key} id={optId(n)} role="option" aria-selected={active === n} aria-label={i.name} onMouseDown={e => e.preventDefault()} onClick={() => choose(n)}
+                className={`cursor-pointer px-3 py-2 text-sm hover:bg-surface ${active === n ? 'bg-surface' : ''}`}>{i.name}</li>
             ))}
             {showAdd && (
-              <li role="option" aria-selected={false} aria-label={`أضف «${text.trim()}» كمنتج جديد`} onMouseDown={e => e.preventDefault()} onClick={addNew}
-                className="flex cursor-pointer items-center gap-2 border-t border-line px-3 py-2 text-sm font-medium text-primary hover:bg-primary-light/50">
+              <li id={optId(matches.length)} role="option" aria-selected={active === matches.length} aria-label={`أضف «${text.trim()}» كمنتج جديد`} onMouseDown={e => e.preventDefault()} onClick={addNew}
+                className={`flex cursor-pointer items-center gap-2 border-t border-line px-3 py-2 text-sm font-medium text-primary hover:bg-primary-light/50 ${active === matches.length ? 'bg-primary-light/50' : ''}`}>
                 <Plus className="size-4" /> أضف «{text.trim()}» كمنتج جديد
               </li>
             )}

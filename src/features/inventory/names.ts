@@ -8,6 +8,9 @@ export function normalizeName(s: string): string {
     .replace(/[أإآٱ]/g, 'ا')
     .replace(/ة/g, 'ه')
     .replace(/ى/g, 'ي')
+    // Keys are doc ids and part of stock ids: no "/" and no "__".
+    .replace(/\//g, '-')
+    .replace(/_+/g, '_')
     .split(/\s+/)
     .filter(Boolean)
     .map(w => (w.startsWith('ال') && w.length - 2 >= 2 ? w.slice(2) : w))

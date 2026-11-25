@@ -93,6 +93,28 @@ describe('stock dialog', () => {
     expect(screen.queryByText(/موجود في هذا المستودع/)).not.toBeInTheDocument()
   })
 
+  it('picks a product with the keyboard', async () => {
+    const { user, onSave } = setup()
+    await user.type(product(), 'أجهزة')
+    expect(product()).toHaveAttribute('aria-expanded', 'true')
+    await user.keyboard('{ArrowDown}{ArrowDown}')
+    const active = product().getAttribute('aria-activedescendant')
+    expect(active && document.getElementById(active)).toHaveAccessibleName('أجهزة قياس ضغط')
+    await user.keyboard('{Enter}')
+    expect(product()).toHaveValue('أجهزة قياس ضغط')
+    await user.type(qty(), '7')
+    await user.click(save())
+    expect(onSave).toHaveBeenCalledWith({ kind: 'existing', item: SEED_ITEMS[3] }, 'new', 7)
+  })
+
+  it('typing an exact product name picks it without clicking', async () => {
+    const { user, onSave } = setup()
+    await user.type(product(), 'الكراسي المتحركة')
+    await user.type(qty(), '2')
+    await user.click(save())
+    expect(onSave).toHaveBeenCalledWith({ kind: 'existing', item: CHAIRS }, 'new', 2)
+  })
+
   it('shows an error when saving fails', async () => {
     const onSave = vi.fn().mockRejectedValue(new Error('offline'))
     const { user, onClose } = setup({ onSave })

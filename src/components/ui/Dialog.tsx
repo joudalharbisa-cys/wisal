@@ -5,17 +5,24 @@ import { X } from 'lucide-react'
 export default function Dialog({ title, sub, icon, onClose, footer, children }: { title: string; sub?: ReactNode; icon?: ReactNode; onClose: () => void; footer: ReactNode; children: ReactNode }) {
   const titleId = useId()
   const box = useRef<HTMLDivElement>(null)
+  // Callers pass inline handlers; keep the latest in a ref so re-renders don't re-run the focus effect.
+  const closeRef = useRef(onClose)
+  useEffect(() => { closeRef.current = onClose })
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const opener = document.activeElement as HTMLElement | null
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeRef.current() }
     document.addEventListener('keydown', onKey)
-    // Focus the first field so keyboard users land inside the dialog.
+    // Once, on open: land keyboard users on the first field; on close, give focus back to what opened the dialog.
     box.current?.querySelector<HTMLElement>('input, select, textarea, button:not([data-close])')?.focus()
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      if (opener && document.contains(opener)) opener.focus()
+    }
+  }, [])
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-ink/40 p-4 backdrop-blur-[2px]" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-ink/40 p-4 backdrop-blur-[2px]" onMouseDown={e => { if (e.target === e.currentTarget) closeRef.current() }}>
       <div ref={box} role="dialog" aria-modal="true" aria-labelledby={titleId} className="w-full max-w-lg rounded-card bg-white shadow-xl">
         <div className="flex items-start gap-3 border-b border-line px-6 py-5">
           {icon && <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent-light text-accent">{icon}</span>}

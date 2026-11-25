@@ -75,10 +75,12 @@ export default function MyStock() {
   const [deleting, setDeleting] = useState<StockRow | null>(null)
   const [busy, setBusy] = useState(false)
   const [deleteFailed, setDeleteFailed] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
 
   useEffect(() => {
     if (!uid) return
-    const stops = [inventory.watchWarehouses(uid, setWarehouses), inventory.watchStock(uid, setRows), inventory.watchItems(setItems)]
+    const fail = () => setLoadFailed(true)
+    const stops = [inventory.watchWarehouses(uid, setWarehouses, fail), inventory.watchStock(uid, setRows, fail), inventory.watchItems(setItems, fail)]
     return () => stops.forEach(s => s())
   }, [inventory, uid])
 
@@ -108,7 +110,9 @@ export default function MyStock() {
         <Button variant="secondary" className="h-11 px-5" onClick={() => navigate('/app/warehouses/new')}><Plus className="size-4" /> مستودع جديد</Button>
       )}
     >
-      {warehouses === null ? (
+      {loadFailed ? (
+        <Alert tone="danger">تعذّر تحميل المخزون، تأكد من الاتصال وحاول مرة ثانية</Alert>
+      ) : warehouses === null ? (
         <div className="grid place-items-center rounded-card bg-white p-12 text-primary"><Spinner className="size-7" /></div>
       ) : warehouses.length === 0 ? (
         <section className="rounded-card bg-white p-12 text-center shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]">

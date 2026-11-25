@@ -21,6 +21,14 @@ describe('inventory domain', () => {
     expect(findNearDuplicate('الكراسي المتحركة', SEED_ITEMS)).toBeNull()
   })
 
+  it('keys for names with "/" or "__" are still valid doc ids', () => {
+    expect(normalizeName('حقن 5/10 مل')).toBe('حقن 5-10 مل')
+    expect(isValidItemKey(normalizeName('حقن 5/10 مل'))).toBe(true)
+    expect(isValidItemKey(normalizeName('a__b'))).toBe(true)
+    expect(validateItemName('..')).toBe('اسم المنتج من 2 إلى 60 حرف')
+    expect(validateItemName('5/10')).toBeUndefined()
+  })
+
   it('builds stock ids and checks item keys', () => {
     expect(stockId('w1', 'كراسي متحركه', 'new')).toBe('w1__كراسي متحركه__new')
     expect(isValidItemKey('a/b')).toBe(false)

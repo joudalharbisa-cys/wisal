@@ -38,10 +38,10 @@ export interface Services {
   }
   inventory: {
     /** Products stored in the database (the UI merges SEED_ITEMS). */
-    watchItems(cb: (items: Item[]) => void): Unsubscribe
+    watchItems(cb: (items: Item[]) => void, onError?: (e: ServiceError) => void): Unsubscribe
     /** Oldest first. */
-    watchWarehouses(uid: string, cb: (w: Warehouse[]) => void): Unsubscribe
-    watchStock(uid: string, cb: (rows: StockRow[]) => void): Unsubscribe
+    watchWarehouses(uid: string, cb: (w: Warehouse[]) => void, onError?: (e: ServiceError) => void): Unsubscribe
+    watchStock(uid: string, cb: (rows: StockRow[]) => void, onError?: (e: ServiceError) => void): Unsubscribe
     /** Every approved org's rows (collection group). */
     watchAllStock(cb: (rows: StockRow[]) => void, onError?: (e: ServiceError) => void): Unsubscribe
     /** Create (id null) or update; an update also refreshes the warehouse name/city copied onto its rows. Returns the id. */

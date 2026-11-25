@@ -74,6 +74,12 @@ describe('my stock page', () => {
     expect(await within(card('مستودع الحمدانية')).findByText('ما فيه منتجات في هذا المستودع للحين')).toBeInTheDocument()
   })
 
+  it('shows an error instead of spinning when stock cannot load', async () => {
+    renderAt({ failures: { inventory: true } })
+    expect(await screen.findByText('تعذّر تحميل المخزون، تأكد من الاتصال وحاول مرة ثانية')).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
   it('nav shows مخزوني and مخزون الجهات', async () => {
     renderAt()
     expect(await screen.findByRole('link', { name: 'مخزوني' })).toHaveAttribute('href', '/app')

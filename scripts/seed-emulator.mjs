@@ -39,7 +39,7 @@ async function put(path, data) {
 }
 
 // Same rules as src/features/inventory/names.ts normalizeName (kept tiny on purpose).
-const key = s => s.toLowerCase().replace(/[ً-ْٰـ]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي')
+const key = s => s.toLowerCase().replace(/[ً-ْٰـ]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/\//g, '-').replace(/_+/g, '_')
   .split(/\s+/).filter(Boolean).map(w => (w.startsWith('ال') && w.length - 2 >= 2 ? w.slice(2) : w)).join(' ')
 
 const now = new Date()

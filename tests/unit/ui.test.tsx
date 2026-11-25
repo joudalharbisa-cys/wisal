@@ -118,3 +118,22 @@ it('stat shows its label and value', () => {
   expect(screen.getByText('المستودعات')).toBeInTheDocument()
   expect(screen.getByText('2')).toBeInTheDocument()
 })
+it('dialog keeps focus where the user is when the parent re-renders, and returns it on close', async () => {
+  function Host({ tick, open }: { tick: number; open: boolean }) {
+    return (
+      <>
+        <button>فتح</button>
+        {open && <Dialog title="إضافة منتج" onClose={() => {}} footer={null}><input aria-label="المنتج" /><input aria-label="الكمية" data-tick={tick} /></Dialog>}
+      </>
+    )
+  }
+  const { rerender } = render(<Host tick={0} open={false} />)
+  screen.getByRole('button', { name: 'فتح' }).focus()
+  rerender(<Host tick={0} open />)
+  expect(screen.getByLabelText('المنتج')).toHaveFocus()
+  screen.getByLabelText('الكمية').focus()
+  rerender(<Host tick={1} open />)
+  expect(screen.getByLabelText('الكمية')).toHaveFocus()
+  rerender(<Host tick={1} open={false} />)
+  expect(screen.getByRole('button', { name: 'فتح' })).toHaveFocus()
+})

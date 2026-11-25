@@ -11,7 +11,7 @@ import Spinner from '../../components/ui/Spinner'
 import { getCurrentLocation } from '../../features/inventory/geo'
 import LocationMap from '../../features/inventory/LocationMap'
 import type { LatLng, StockRow, Warehouse, WarehouseDraft } from '../../features/inventory/types'
-import { validateWarehouse } from '../../features/inventory/validate'
+import { parseCoord, validateWarehouse } from '../../features/inventory/validate'
 import { CITIES, CITY_CENTERS } from '../../features/orgs/cities'
 import AppShell from '../../layout/AppShell'
 import { useServices } from '../../services/ServicesContext'
@@ -40,10 +40,13 @@ export default function WarehouseForm() {
   const [locating, setLocating] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [coordText, setCoordText] = useState<{ lat?: string; lng?: string }>({})
 
   useEffect(() => {
     if (!uid || !id) return
-    const stops = [inventory.watchWarehouses(uid, setList), inventory.watchStock(uid, setRows)]
+    const fail = () => setLoadFailed(true)
+    const stops = [inventory.watchWarehouses(uid, setList, fail), inventory.watchStock(uid, setRows, fail)]
     return () => stops.forEach(s => s())
   }, [inventory, uid, id])
 
@@ -58,6 +61,9 @@ export default function WarehouseForm() {
   if (session.kind !== 'member' || !org) return null
   const title = id ? 'تعديل المستودع' : 'مستودع جديد'
 
+  if (id && loadFailed) {
+    return <AppShell title={title}><Alert tone="danger">تعذّر تحميل المخزون، تأكد من الاتصال وحاول مرة ثانية</Alert></AppShell>
+  }
   // Keep the spinner until the warehouse's values are in the fields (no flash of an empty form).
   if (id && (list === null || (existing && loadedId !== existing.id))) {
     return <AppShell title={title}><div className="grid place-items-center rounded-card bg-white p-12 text-primary"><Spinner className="size-7" /></div></AppShell>
@@ -74,7 +80,16 @@ export default function WarehouseForm() {
   }
 
   const set = <K extends keyof WarehouseDraft>(k: K, v: WarehouseDraft[K]) => setDraft(d => ({ ...d, [k]: v }))
-  const place = (p: LatLng) => { set('location', p); setErrors(e => ({ ...e, location: undefined })) }
+  const place = (p: LatLng) => { set('location', p); setCoordText({}); setErrors(e => ({ ...e, location: undefined })) }
+  // What the user typed wins; otherwise show the pin's position.
+  const coordValue = (k: 'lat' | 'lng') => coordText[k] ?? (draft.location ? draft.location[k].toFixed(4) : '')
+  const typeCoord = (k: 'lat' | 'lng', v: string) => {
+    const next = { lat: coordValue('lat'), lng: coordValue('lng'), [k]: v }
+    setCoordText(t => ({ ...t, [k]: v }))
+    const lat = parseCoord(next.lat)
+    const lng = parseCoord(next.lng)
+    set('location', lat !== null && lng !== null ? { lat, lng } : null)
+  }
   const rowCount = id ? rows.filter(r => r.warehouseId === id).length : 0
 
   const locate = async () => {
@@ -142,10 +157,15 @@ export default function WarehouseForm() {
               <Info className="mt-0.5 size-4 shrink-0" />
               <p>اضغط على الخريطة او حرّك الدبوس لمكان المستودع بالضبط، او اضغط «موقعي الحالي» إذا كنت فيه الحين.</p>
             </div>
-            <dl className="grid grid-cols-2 gap-3 text-xs">
-              <div className="rounded-control border border-line p-3"><dt className="text-muted">خط العرض</dt><dd dir="ltr" className="mt-0.5 text-end font-medium tabular-nums">{draft.location ? draft.location.lat.toFixed(4) : '—'}</dd></div>
-              <div className="rounded-control border border-line p-3"><dt className="text-muted">خط الطول</dt><dd dir="ltr" className="mt-0.5 text-end font-medium tabular-nums">{draft.location ? draft.location.lng.toFixed(4) : '—'}</dd></div>
-            </dl>
+            {/* Typing coordinates is the keyboard path to a location (and works when geolocation is refused). */}
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="خط العرض">
+                <Input dir="ltr" inputMode="decimal" autoComplete="off" placeholder="21.5433" value={coordValue('lat')} onChange={e => typeCoord('lat', e.target.value)} className="text-end tabular-nums" />
+              </Field>
+              <Field label="خط الطول">
+                <Input dir="ltr" inputMode="decimal" autoComplete="off" placeholder="39.1728" value={coordValue('lng')} onChange={e => typeCoord('lng', e.target.value)} className="text-end tabular-nums" />
+              </Field>
+            </div>
             {errors.location && <Alert tone="danger">{errors.location}</Alert>}
             {geoFailed && <Alert tone="warning">ما قدرنا نحدد موقعك، حرّك الدبوس يدويًا</Alert>}
           </div>
