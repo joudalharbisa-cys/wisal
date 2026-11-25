@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Crosshair, Info, Trash2 } from 'lucide-react'
 import Alert from '../../components/ui/Alert'
@@ -8,6 +8,7 @@ import Field from '../../components/ui/Field'
 import Input from '../../components/ui/Input'
 import Select from '../../components/ui/Select'
 import Spinner from '../../components/ui/Spinner'
+import { useAddressFromPin } from '../../features/geo/useAddressFromPin'
 import { getCurrentLocation } from '../../features/inventory/geo'
 import LocationMap from '../../features/inventory/LocationMap'
 import type { LatLng, StockRow, Warehouse, WarehouseDraft } from '../../features/inventory/types'
@@ -42,6 +43,9 @@ export default function WarehouseForm() {
   const [deleting, setDeleting] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
   const [coordText, setCoordText] = useState<{ lat?: string; lng?: string }>({})
+  // Pin placed by the user (not a loaded warehouse) → look up its district/city; fields typed since then win.
+  const [userPin, setUserPin] = useState<LatLng | null>(null)
+  const touched = useRef({ city: false, district: false })
 
   useEffect(() => {
     if (!uid || !id) return
@@ -57,6 +61,12 @@ export default function WarehouseForm() {
       setLoadedId(existing.id)
     }
   }, [existing, loadedId])
+
+  useAddressFromPin(userPin, a => setDraft(d => ({
+    ...d,
+    city: a.city && !touched.current.city ? a.city : d.city,
+    district: a.district && !touched.current.district ? a.district : d.district,
+  })))
 
   if (session.kind !== 'member' || !org) return null
   const title = id ? 'تعديل المستودع' : 'مستودع جديد'
@@ -80,7 +90,8 @@ export default function WarehouseForm() {
   }
 
   const set = <K extends keyof WarehouseDraft>(k: K, v: WarehouseDraft[K]) => setDraft(d => ({ ...d, [k]: v }))
-  const place = (p: LatLng) => { set('location', p); setCoordText({}); setErrors(e => ({ ...e, location: undefined })) }
+  const userMovedPin = (p: LatLng) => { setUserPin(p); touched.current = { city: false, district: false } }
+  const place = (p: LatLng) => { set('location', p); setCoordText({}); userMovedPin(p); setErrors(e => ({ ...e, location: undefined })) }
   // What the user typed wins; otherwise show the pin's position.
   const coordValue = (k: 'lat' | 'lng') => coordText[k] ?? (draft.location ? draft.location[k].toFixed(4) : '')
   const typeCoord = (k: 'lat' | 'lng', v: string) => {
@@ -89,6 +100,7 @@ export default function WarehouseForm() {
     const lat = parseCoord(next.lat)
     const lng = parseCoord(next.lng)
     set('location', lat !== null && lng !== null ? { lat, lng } : null)
+    if (lat !== null && lng !== null) userMovedPin({ lat, lng })
   }
   const rowCount = id ? rows.filter(r => r.warehouseId === id).length : 0
 
@@ -145,12 +157,12 @@ export default function WarehouseForm() {
             </Field>
             <div className="grid grid-cols-2 gap-4">
               <Field label="المدينة" error={errors.city}>
-                <Select value={draft.city} onChange={e => set('city', e.target.value)} invalid={!!errors.city}>
+                <Select value={draft.city} onChange={e => { touched.current.city = true; set('city', e.target.value) }} invalid={!!errors.city}>
                   {CITIES.map(c => <option key={c}>{c}</option>)}
                 </Select>
               </Field>
               <Field label="الحي" error={errors.district}>
-                <Input value={draft.district} onChange={e => set('district', e.target.value)} invalid={!!errors.district} />
+                <Input value={draft.district} onChange={e => { touched.current.district = true; set('district', e.target.value) }} invalid={!!errors.district} />
               </Field>
             </div>
             <div className="flex gap-2.5 rounded-control bg-primary-light/60 p-3.5 text-sm text-primary-dark">

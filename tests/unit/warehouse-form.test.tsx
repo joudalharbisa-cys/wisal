@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -13,7 +13,13 @@ vi.mock('../../src/features/inventory/LocationMap', () => ({
   default: ({ onChange }: { onChange: (v: LatLng) => void }) => <button type="button" onClick={() => onChange({ lat: 21.62, lng: 39.15 })}>ضع الدبوس</button>,
 }))
 
-const ORG = { role: 'hospital', name: 'مستشفى الملك فهد', status: 'approved', city: 'جدة' } as Org
+// Address lookup answers only when a test resolves it, so typing can happen before the answer arrives.
+let resolveGeo: (v: { city?: string; district?: string } | null) => void = () => {}
+vi.mock('../../src/features/geo/reverseGeocode', () => ({
+  defaultGeocoder: () => new Promise(r => { resolveGeo = r }),
+}))
+
+const ORG ={ role: 'hospital', name: 'مستشفى الملك فهد', status: 'approved', city: 'جدة' } as Org
 const W1: Warehouse = { id: 'w1', name: 'المستودع الرئيسي', city: 'جدة', district: 'النعيم', location: { lat: 21.6, lng: 39.1 }, createdAt: new Date(), updatedAt: new Date() }
 const row = (key: string): StockRow => ({ id: `w1__${key}__new`, orgId: 'h1', orgName: ORG.name, orgRole: 'hospital', warehouseId: 'w1', warehouseName: W1.name, city: 'جدة', itemId: key, itemName: key, condition: 'new', qty: 3, reserved: 0, updatedAt: new Date() })
 
@@ -47,6 +53,22 @@ describe('warehouse form', () => {
     await user.type(screen.getByRole('textbox', { name: 'خط الطول' }), '٣٩٫١٧')
     await user.click(screen.getByRole('button', { name: 'حفظ المستودع' }))
     expect(await screen.findByRole('region', { name: 'مستودع الشرفية' })).toBeInTheDocument()
+  })
+
+  it('placing the pin fills district and city', async () => {
+    const { user } = renderAt('/app/warehouses/new')
+    await user.click(await screen.findByRole('button', { name: 'ضع الدبوس' }))
+    await act(async () => resolveGeo({ city: 'مكة المكرمة', district: 'العزيزية' }))
+    expect(screen.getByLabelText('الحي')).toHaveValue('العزيزية')
+    expect(screen.getByLabelText('المدينة')).toHaveValue('مكة المكرمة')
+  })
+
+  it('a district typed after the pin is kept', async () => {
+    const { user } = renderAt('/app/warehouses/new')
+    await user.click(await screen.findByRole('button', { name: 'ضع الدبوس' }))
+    await user.type(screen.getByLabelText('الحي'), 'النسيم')
+    await act(async () => resolveGeo({ city: 'جدة', district: 'الشرفية' }))
+    expect(screen.getByLabelText('الحي')).toHaveValue('النسيم')
   })
 
   it('shows validation messages', async () => {
