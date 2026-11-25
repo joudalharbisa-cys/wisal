@@ -25,6 +25,7 @@ function value(v) {
   if (typeof v === 'boolean') return { booleanValue: v }
   if (Number.isInteger(v)) return { integerValue: String(v) }
   if (typeof v === 'number') return { doubleValue: v }
+  if (Array.isArray(v)) return { arrayValue: { values: v.map(value) } }
   return { mapValue: { fields: fields(v) } }
 }
 const fields = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, value(v)]))
@@ -62,8 +63,10 @@ const orgs = [
     stock: [['كراسي متحركة', 'new', 45]] },
 ]
 
+const uids = {}
 for (const o of orgs) {
   const uid = await account(o.email, PASSWORD)
+  uids[o.email] = uid
   await put(`orgs/${uid}`, {
     ...o.org, status: 'approved', contactEmail: o.email,
     contract: { version: '1.0-draft', acceptedAt: now, acceptedByName: 'موقّع تجريبي' },
@@ -81,4 +84,24 @@ for (const o of orgs) {
   }
   console.log(`approved ${o.org.role}: ${o.email}`)
 }
+// Phase 5: one request waiting for جمعية البر, and one open request any charity can take.
+const hosp = uids['hospital@wesal.test']
+const birr = uids['charity@wesal.test']
+const chairs = key('كراسي متحركة')
+const base = {
+  hospitalId: hosp, hospitalName: 'مستشفى الملك فهد', itemId: chairs, itemName: 'كراسي متحركة', accept: 'any', priority: 'urgent',
+  beneficiaries: 20, neededBy: new Date(Date.now() + 2 * 864e5),
+  delivery: { lat: 21.5433, lng: 39.1728, city: 'جدة', district: 'الشرفية', details: 'البوابة 3' },
+  excluded: [], createdAt: now, updatedAt: now,
+}
+const reqs = [
+  ['seed-sent', { ...base, qty: 20, status: 1, open: false, charityId: birr, charityName: 'جمعية البر بجدة', warehouseId: 'seed-wh' }],
+  ['seed-open', { ...base, qty: 10, priority: 'medium', status: 0, open: true }],
+]
+for (const [id, r] of reqs) {
+  await put(`requests/${id}`, r)
+  await put(`requestSecrets/${id}`, { code: String(1000 + Math.floor(Math.random() * 9000)), hospitalId: hosp })
+  await put(`requestContacts/${id}`, { hospitalId: hosp, name: 'أحمد الغامدي', phone: '0551234567' })
+}
+console.log('requests: one sent to جمعية البر, one open')
 console.log(`test admin: admin@wesal.test · orgs password: ${PASSWORD}`)

@@ -81,3 +81,11 @@
 - Charities that can cover the quantity from one warehouse are ranked with the prototype formula (`src/features/requests/rank.ts`); the hospital picks one and sends, or publishes an open request. Every request gets a 4-digit receipt code only the hospital can read (`requestSecrets`).
 - Data: `requests/{id}`, `requestSecrets/{id}`. The ranking query needs the collection-group indexes in `firestore.indexes.json` (deployed by `npm run deploy`).
 - Local demo: `npm run seed:emulator` adds جمعية الشمال (north@wesal.test) and جمعية الشرق (east@wesal.test); a 40-chair urgent request from hospital@wesal.test ranks الشمال 90، البر 89، الشرق 84.
+
+## Phase 5 — Charity incoming requests (الطلبات الواردة)
+
+- Charities land on «الطلبات الواردة» (`/app`; «مخزوني» at `/app/stock`) with tabs لك / مفتوحة / قبلتها and a waiting-count badge in the nav.
+- `/app/incoming/:id`: accept (a transaction reserves stock in one own warehouse, new first then used) or reject with an optional reason. Accepting shows the receiver to the charity and the receipt code to the hospital.
+- A rejected request goes back to the hospital («بانتظار قرارك»): choose another charity (the one that rejected is marked «رفضت الطلب قبل») or publish it as open. Any approved charity that can cover an open request may take it — including one that rejected it before. If two charities take it at once, one wins and the other sees «أخذته جمعية ثانية».
+- Data: `requests.open`, `reservation`, `acceptedAt`, `lastRejection`; receiver moved to `requestContacts/{id}` (hospital; accepting charity after acceptance). Stock rows: owners may set `reserved` within 0..qty; reserved rows/warehouses can't be deleted.
+- Local demo: `npm run seed:emulator` also adds one request sent to جمعية البر (charity@wesal.test) and one open request.
