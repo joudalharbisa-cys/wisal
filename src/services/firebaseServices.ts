@@ -9,6 +9,7 @@ import {
   collection,
   collectionGroup,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -28,6 +29,7 @@ import { isValidItemKey, normalizeName, stockId } from '../features/inventory/na
 import { MAX_QTY, type StockRow, type Warehouse } from '../features/inventory/types'
 import { validateItemName } from '../features/inventory/validate'
 import { makeReceiptCode } from '../features/requests/code'
+import { planReservation } from '../features/requests/reserve'
 import type { HospitalRequest } from '../features/requests/types'
 import { toServiceError } from '../features/auth/errors'
 import { CONTRACT } from '../features/orgs/contract'
@@ -244,6 +246,73 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
           s => cb(s.exists() ? { name: s.data().name as string, phone: s.data().phone as string } : null),
           e => (isDenied(e) ? cb(null) : onError?.(toServiceError(e))),
         )
+      },
+      watchIncoming(charityId, cb, onError) {
+        return onSnapshot(
+          query(collection(db(), 'requests'), where('charityId', '==', charityId)),
+          s => cb(s.docs.map(d => toRequest(d.id, d.data(snap))).sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())),
+          e => onError?.(toServiceError(e)),
+        )
+      },
+      watchOpen(cb, onError) {
+        return onSnapshot(
+          query(collection(db(), 'requests'), where('status', '==', 0), where('open', '==', true)),
+          s => cb(s.docs.map(d => toRequest(d.id, d.data(snap))).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())),
+          e => onError?.(toServiceError(e)),
+        )
+      },
+      async accept(charity, id, warehouseId) {
+        const reqRef = doc(db(), 'requests', id)
+        const taken = () => new ServiceError('invalid-transition', 'taken')
+        try {
+          await runTransaction(db(), async tx => {
+            let snapR
+            try { snapR = await tx.get(reqRef) } catch (e) { if (isDenied(e)) throw taken(); throw e }
+            if (!snapR.exists()) throw taken()
+            const r = toRequest(snapR.id, snapR.data())
+            const sent = r.status === 1 && r.charityId === charity.uid
+            const open = r.status === 0 && r.open
+            if (!sent && !open) throw taken()
+            // Transactions can't query: read this warehouse's two possible rows by id.
+            const refs = (['new', 'used'] as const).map(c => doc(db(), 'orgs', charity.uid, 'stock', stockId(warehouseId, r.itemId, c)))
+            const rows = (await Promise.all(refs.map(ref => tx.get(ref)))).filter(s => s.exists()).map(s => toStockRow(s.id, s.data()))
+            const plan = planReservation(r, warehouseId, rows)
+            if (!plan) throw new ServiceError('invalid-transition', 'short')
+            for (const [sid, n] of Object.entries(plan)) {
+              const row = rows.find(x => x.id === sid)!
+              tx.update(doc(db(), 'orgs', charity.uid, 'stock', sid), { reserved: row.reserved + n, updatedAt: serverTimestamp() })
+            }
+            tx.update(reqRef, sent
+              ? { status: 2, warehouseId, reservation: plan, acceptedAt: serverTimestamp(), updatedAt: serverTimestamp() }
+              : { status: 2, open: false, charityId: charity.uid, charityName: charity.name, warehouseId, reservation: plan,
+                  acceptedAt: serverTimestamp(), updatedAt: serverTimestamp(), lastRejection: deleteField() })
+          })
+        } catch (e) {
+          if (e instanceof ServiceError) throw e
+          if (isDenied(e)) throw taken() // lost the race: the request is no longer ours to read/write
+          throw toServiceError(e)
+        }
+      },
+      async reject(charity, id, reason) {
+        const reqRef = doc(db(), 'requests', id)
+        await wrap(runTransaction(db(), async tx => {
+          const s = await tx.get(reqRef)
+          if (!s.exists()) throw new ServiceError('invalid-transition', 'taken')
+          const r = toRequest(s.id, s.data())
+          if (r.status !== 1 || r.charityId !== charity.uid) throw new ServiceError('invalid-transition', 'taken')
+          tx.update(reqRef, {
+            status: 0, charityId: deleteField(), charityName: deleteField(), warehouseId: deleteField(),
+            excluded: [...r.excluded, charity.uid],
+            lastRejection: { charityName: r.charityName ?? '', reason: reason.trim(), at: serverTimestamp() },
+            updatedAt: serverTimestamp(),
+          })
+        }))
+      },
+      async chooseAgain(_hospital, id, choice) {
+        await wrap(updateDoc(doc(db(), 'requests', id), { status: 1, open: false, ...choice, lastRejection: deleteField(), updatedAt: serverTimestamp() }))
+      },
+      async publishOpen(_hospital, id) {
+        await wrap(updateDoc(doc(db(), 'requests', id), { open: true, lastRejection: deleteField(), updatedAt: serverTimestamp() }))
       },
       async loadCandidates(itemId) {
         const found = await wrap(getDocs(query(collectionGroup(db(), 'stock'), where('orgRole', '==', 'charity'), where('itemId', '==', itemId))))

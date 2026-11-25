@@ -90,8 +90,8 @@ describe('requests on the emulator', () => {
     expect(mine[1].id).toBe(sentId)
   }, 20000)
 
-  it("charity cannot read the hospital's request", async () => {
-    expect(await next<HospitalRequest | null>(cb => C.s.requests.watchOne(sentId, cb), () => true)).toBeNull()
+  it('the addressed charity reads the request but not the contact or code before accepting', async () => {
+    expect(await next<HospitalRequest | null>(cb => C.s.requests.watchOne(sentId, cb), x => !!x)).toMatchObject({ status: 1 })
     expect(await next<{ name: string; phone: string } | null>(cb => C.s.requests.watchContact(sentId, cb), x => x === null)).toBeNull()
     expect(await next<string | null>(cb => C.s.requests.watchCode(sentId, cb), () => true)).toBeNull()
   }, 20000)

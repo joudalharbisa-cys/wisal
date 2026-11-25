@@ -63,6 +63,17 @@ export interface Services {
     loadCandidates(itemId: string): Promise<Candidates>
     /** Creates the product if needed, the request (status 1 with a charity, else 0 = open) and its receipt code. */
     send(hospital: OrgRef, req: ValidRequest, choice: CharityChoice | null): Promise<{ id: string; code: string }>
+    /** Requests addressed to / accepted by this charity, newest first. */
+    watchIncoming(charityId: string, cb: (r: HospitalRequest[]) => void, onError?: (e: ServiceError) => void): Unsubscribe
+    /** Open requests (status 0, published by the hospital). */
+    watchOpen(cb: (r: HospitalRequest[]) => void, onError?: (e: ServiceError) => void): Unsubscribe
+    /** Accept a request sent to this charity, or take an open one, holding stock in one own warehouse.
+     *  Errors: ServiceError('invalid-transition', 'short' | 'taken'). */
+    accept(charity: OrgRef, id: string, warehouseId: string): Promise<void>
+    /** Send it back to the hospital (status 0, not open). */
+    reject(charity: OrgRef, id: string, reason: string): Promise<void>
+    chooseAgain(hospital: OrgRef, id: string, choice: CharityChoice): Promise<void>
+    publishOpen(hospital: OrgRef, id: string): Promise<void>
   }
 }
 

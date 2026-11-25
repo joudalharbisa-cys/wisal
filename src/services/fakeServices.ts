@@ -4,6 +4,7 @@ import { isValidItemKey, normalizeName, stockId } from '../features/inventory/na
 import { MAX_QTY, type Item, type StockRow, type Warehouse } from '../features/inventory/types'
 import { inSaudiBox, validateItemName } from '../features/inventory/validate'
 import { makeReceiptCode } from '../features/requests/code'
+import { planReservation } from '../features/requests/reserve'
 import type { Contact, HospitalRequest } from '../features/requests/types'
 import { applicationFields, resolveItem, ServiceError, type AuthUser, type Services } from './types'
 
@@ -94,6 +95,25 @@ export function createFakeServices(seed: Seed = {}) {
   const mineOrNull = (id: string) => {
     const r = state.requests.get(id)
     return r && r.hospitalId === state.current?.uid ? r : null
+  }
+  // What the rules let the signed-in org read: its own, addressed to it, or open (approved charities).
+  const readable = (id: string) => {
+    const r = state.requests.get(id)
+    const me = state.current?.uid
+    if (!r || !me) return null
+    const o = state.orgs.get(me)
+    const charity = o?.role === 'charity' && o.status === 'approved'
+    return r.hospitalId === me || r.charityId === me || (r.status === 0 && r.open && charity) ? r : null
+  }
+  const actingCharity = (c: { uid: string }) => {
+    const o = state.orgs.get(c.uid)
+    if (state.current?.uid !== c.uid || o?.role !== 'charity' || o.status !== 'approved') throw new ServiceError('invalid-transition', 'not an approved charity')
+    return o
+  }
+  const actingHospital = (h: { uid: string }, id: string) => {
+    const r = state.requests.get(id)
+    if (state.current?.uid !== h.uid || !r || r.hospitalId !== h.uid) throw new ServiceError('invalid-transition', 'not your request')
+    return r
   }
   const rowsOf = (uid: string) => [...state.stock.values()].filter(r => r.orgId === uid)
   const mustApproved = (uid: string) => {
@@ -255,7 +275,61 @@ export function createFakeServices(seed: Seed = {}) {
         return listenReq(() => cb([...state.requests.values()].filter(r => r.hospitalId === uid).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())), onError)
       },
       watchOne(id, cb, onError) {
-        return listenReq(() => cb(mineOrNull(id)), onError)
+        return listenReq(() => cb(readable(id)), onError)
+      },
+      watchIncoming(charityId, cb, onError) {
+        return listenReq(() => cb([...state.requests.values()].filter(r => r.charityId === charityId).sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())), onError)
+      },
+      watchOpen(cb, onError) {
+        return listenReq(() => {
+          const o = state.current ? state.orgs.get(state.current.uid) : undefined
+          const ok = o?.role === 'charity' && o.status === 'approved'
+          cb(ok ? [...state.requests.values()].filter(r => r.status === 0 && r.open).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()) : [])
+        }, onError)
+      },
+      async accept(charity, id, warehouseId) {
+        const o = actingCharity(charity)
+        const r = state.requests.get(id)
+        const sent = !!r && r.status === 1 && r.charityId === charity.uid
+        const open = !!r && r.status === 0 && r.open
+        if (!r || (!sent && !open)) throw new ServiceError('invalid-transition', 'taken')
+        if (!(state.warehouses.get(charity.uid) ?? []).some(w => w.id === warehouseId)) throw new ServiceError('invalid-transition', 'no warehouse')
+        const plan = planReservation(r, warehouseId, rowsOf(charity.uid))
+        if (!plan) throw new ServiceError('invalid-transition', 'short')
+        const t = now()
+        for (const [sid, n] of Object.entries(plan)) {
+          const k = `${charity.uid}/${sid}`
+          const row = state.stock.get(k)!
+          state.stock.set(k, { ...row, reserved: row.reserved + n, updatedAt: t })
+        }
+        const next: HospitalRequest = { ...r, status: 2, open: false, charityId: charity.uid, charityName: o.name, warehouseId, reservation: plan, acceptedAt: t, updatedAt: t }
+        delete next.lastRejection
+        state.requests.set(id, next)
+        emitInv()
+      },
+      async reject(charity, id, reason) {
+        actingCharity(charity)
+        const r = state.requests.get(id)
+        if (!r || r.status !== 1 || r.charityId !== charity.uid) throw new ServiceError('invalid-transition', 'taken')
+        const t = now()
+        const { charityId: _c, charityName, warehouseId: _w, ...rest } = r
+        state.requests.set(id, { ...rest, status: 0, open: false, excluded: [...r.excluded, charity.uid], lastRejection: { charityName: charityName ?? '', reason: reason.trim(), at: t }, updatedAt: t })
+        emitInv()
+      },
+      async chooseAgain(hospital, id, choice) {
+        const r = actingHospital(hospital, id)
+        const c = state.orgs.get(choice.charityId)
+        if (r.status !== 0 || c?.role !== 'charity' || c.status !== 'approved' || c.name !== choice.charityName) throw new ServiceError('invalid-transition', 'cannot choose')
+        const { lastRejection: _l, ...rest } = r
+        state.requests.set(id, { ...rest, ...choice, status: 1, open: false, updatedAt: now() })
+        emitInv()
+      },
+      async publishOpen(hospital, id) {
+        const r = actingHospital(hospital, id)
+        if (r.status !== 0 || r.open) throw new ServiceError('invalid-transition', 'not waiting')
+        const { lastRejection: _l, ...rest } = r
+        state.requests.set(id, { ...rest, open: true, updatedAt: now() })
+        emitInv()
       },
       watchCode(id, cb, onError) {
         // Like the rules: the code is readable only after the charity approved (status ≥ 2).
