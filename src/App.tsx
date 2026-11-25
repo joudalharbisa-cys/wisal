@@ -3,6 +3,7 @@ import AdminReview from './pages/admin/AdminReview'
 import Home from './pages/app/Home'
 import MyStock from './pages/app/MyStock'
 import NewRequest from './pages/app/NewRequest'
+import RequestDetails from './pages/app/RequestDetails'
 import WarehouseForm from './pages/app/WarehouseForm'
 import Login from './pages/auth/Login'
 import Pending from './pages/auth/Pending'
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/app" element={<Home />} />
         <Route path="/app/stock" element={<MyStock />} />
         <Route path="/app/requests/new" element={<NewRequest />} />
+        <Route path="/app/requests/:id" element={<RequestDetails />} />
         <Route path="/app/warehouses/new" element={<WarehouseForm />} />
         <Route path="/app/warehouses/:id" element={<WarehouseForm />} />
         <Route path="/admin" element={<AdminReview />} />
