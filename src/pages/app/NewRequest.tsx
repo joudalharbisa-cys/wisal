@@ -20,10 +20,12 @@ import PrioritySelect from '../../features/requests/PrioritySelect'
 import { rankCharities } from '../../features/requests/rank'
 import RankingList from '../../features/requests/RankingList'
 import { ACCEPT_LABEL, type Accept, type Ranked, type RequestDraft, type ValidRequest } from '../../features/requests/types'
-import { validateRequest } from '../../features/requests/validate'
+import { lastAllowedDay, validateRequest } from '../../features/requests/validate'
+import DatePicker from '../../components/ui/DatePicker'
 import AppShell from '../../layout/AppShell'
 import { useServices } from '../../services/ServicesContext'
 import { useCurrentSession } from '../../session/Guard'
+import { onlyDigits } from '../../lib/digits'
 
 const CARD = 'rounded-card border border-line bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]'
 const isCity = (c: string): c is (typeof CITIES)[number] => (CITIES as readonly string[]).includes(c)
@@ -242,6 +244,7 @@ export default function NewRequest() {
     )
   }
 
+  const today = new Date()
   const center = draft.delivery ?? (isCity(draft.city) ? CITY_CENTERS[draft.city] : CITY_CENTERS['جدة'])
   return (
     <AppShell title="طلب جديد" sub="عبّي الطلب، ونطلع لك الجمعيات الي عندها الكمية مرتبة">
@@ -250,20 +253,18 @@ export default function NewRequest() {
           <Section n={1} title="وش تحتاج؟">
             <ProductPicker key={formKey} items={items} value={draft.item} onChange={c => set('item', c)} error={errors.item} />
             <div className="grid grid-cols-2 gap-4">
-              <Field label="الكمية" error={errors.qty}><Input inputMode="numeric" dir="ltr" autoComplete="off" value={draft.qty} onChange={e => set('qty', e.target.value)} invalid={!!errors.qty} className="text-end tabular-nums" /></Field>
-              <Field label="عدد المستفيدين" error={errors.beneficiaries}><Input inputMode="numeric" dir="ltr" autoComplete="off" value={draft.beneficiaries} onChange={e => set('beneficiaries', e.target.value)} invalid={!!errors.beneficiaries} className="text-end tabular-nums" /></Field>
+              <Field label="الكمية" error={errors.qty}><Input inputMode="numeric" dir="ltr" autoComplete="off" value={draft.qty} onChange={e => set('qty', onlyDigits(e.target.value, 5))} invalid={!!errors.qty} className="text-end tabular-nums" /></Field>
+              <Field label="عدد المستفيدين" error={errors.beneficiaries}><Input inputMode="numeric" dir="ltr" autoComplete="off" value={draft.beneficiaries} onChange={e => set('beneficiaries', onlyDigits(e.target.value, 7))} invalid={!!errors.beneficiaries} className="text-end tabular-nums" /></Field>
             </div>
             <ChoiceGroup<Accept> label="الحالة المقبولة" value={draft.accept} onChange={v => set('accept', v)} options={[{ value: 'new', label: ACCEPT_LABEL.new }, { value: 'any', label: ACCEPT_LABEL.any }]} />
             <PrioritySelect value={draft.priority} onChange={p => set('priority', p)} />
-            <Field label="آخر موعد تحتاجه فيه" error={errors.neededBy} hint="مثال: 2026-11-27">
-              <Input dir="ltr" inputMode="text" autoComplete="off" placeholder="YYYY-MM-DD" value={draft.neededBy} onChange={e => set('neededBy', e.target.value)} invalid={!!errors.neededBy} className="text-end tabular-nums" />
-            </Field>
+            <DatePicker label="آخر موعد تحتاجه فيه" value={draft.neededBy} onChange={v => set('neededBy', v)} min={today} max={lastAllowedDay(today)} error={errors.neededBy} />
           </Section>
 
           <Section n={2} title="المستلم">
             <div className="grid grid-cols-2 gap-4">
               <Field label="اسم المستلم" error={errors.receiverName}><Input autoComplete="off" value={draft.receiverName} onChange={e => set('receiverName', e.target.value)} invalid={!!errors.receiverName} /></Field>
-              <Field label="جوال المستلم" error={errors.receiverPhone}><Input dir="ltr" inputMode="tel" autoComplete="off" placeholder="05XXXXXXXX" value={draft.receiverPhone} onChange={e => set('receiverPhone', e.target.value)} invalid={!!errors.receiverPhone} className="text-end tabular-nums" /></Field>
+              <Field label="جوال المستلم" error={errors.receiverPhone}><Input dir="ltr" inputMode="tel" autoComplete="off" placeholder="05XXXXXXXX" value={draft.receiverPhone} onChange={e => set('receiverPhone', onlyDigits(e.target.value, 10))} invalid={!!errors.receiverPhone} className="text-end tabular-nums" /></Field>
             </div>
           </Section>
         </div>

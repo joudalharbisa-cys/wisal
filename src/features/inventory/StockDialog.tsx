@@ -11,6 +11,7 @@ import { normalizeName } from './names'
 import ProductPicker from './ProductPicker'
 import { CONDITION_LABEL, type Condition, type Item, type ItemChoice, type StockRow, type Warehouse } from './types'
 import { parseQty } from './validate'
+import { onlyDigits } from '../../lib/digits'
 
 /** Add a product to a warehouse, or (editing) change one row's quantity. */
 export default function StockDialog({ warehouse, rows, items, editing, onClose, onSave }: {
@@ -73,7 +74,7 @@ export default function StockDialog({ warehouse, rows, items, editing, onClose, 
       )}
       {existing && <Alert tone="info">موجود في هذا المستودع بكمية {existing.qty}، الكمية الجديدة تحل محلها</Alert>}
       <Field label="الكمية" error={errors.qty} hint="عدد القطع الموجودة الحين في هذا المستودع">
-        <Input inputMode="numeric" dir="ltr" autoComplete="off" value={qtyText} onChange={e => setQtyText(e.target.value)} invalid={!!errors.qty} className="text-end tabular-nums" />
+        <Input inputMode="numeric" dir="ltr" autoComplete="off" value={qtyText} onChange={e => setQtyText(onlyDigits(e.target.value, 5))} invalid={!!errors.qty} className="text-end tabular-nums" />
       </Field>
       {failed && <Alert tone="danger">ما قدرنا نحفظ، حاول مرة ثانية</Alert>}
     </Dialog>

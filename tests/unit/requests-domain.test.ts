@@ -70,8 +70,8 @@ describe('ranking', () => {
 
 describe('request validation', () => {
   it('parses Saudi phones', () => {
-    for (const ok of ['0551234567', '٠٥٥١٢٣٤٥٦٧', '+966551234567', '966 55 123 4567', '055 123 4567']) expect(parsePhone(ok)).toBe('0551234567')
-    for (const bad of ['0451234567', '05512', '', 'abc']) expect(parsePhone(bad)).toBeNull()
+    for (const ok of ['0551234567', '٠٥٥١٢٣٤٥٦٧']) expect(parsePhone(ok)).toBe('0551234567')
+    for (const bad of ['+966551234567', '0451234567', '05512', '', 'abc']) expect(parsePhone(bad)).toBeNull()
   })
 
   const today = new Date(2026, 10, 25)
@@ -89,14 +89,16 @@ describe('request validation', () => {
     expect(validateRequest(draft({ neededBy: '25/11/2026' }), today).errors).toEqual({})
     expect(validateRequest(draft({ neededBy: '٢٠٢٦-١١-٢٥' }), today).errors).toEqual({})
     expect(validateRequest(draft({ neededBy: '20261125' }), today).errors).toEqual({})
+    expect(validateRequest(draft({ neededBy: '2027-11-26' }), today).errors.neededBy).toBe('اختر تاريخ من اليوم لين سنة قدام')
+    expect(validateRequest(draft({ neededBy: '2027-11-25' }), today).errors).toEqual({})
     expect(validateRequest(draft({ neededBy: '2026 11 25' }), today).errors).toEqual({})
   })
 
   it('reports each bad field', () => {
     const e = validateRequest(draft({ item: null, qty: '0', beneficiaries: 'x', neededBy: '2026-11-24', receiverName: ' ', receiverPhone: '123', delivery: null, city: 'دبي', district: '', details: 'x'.repeat(101) }), today).errors
     expect(e).toEqual({
-      item: 'اختر المنتج', qty: 'اكتب الكمية بالأرقام من 1 إلى 99999', beneficiaries: 'اكتب عدد المستفيدين بالأرقام', neededBy: 'اختر تاريخ اليوم او بعده',
-      receiverName: 'اكتب اسم المستلم', receiverPhone: 'رقم جوال سعودي يبدأ بـ 05', delivery: 'حدد مكان التسليم على الخريطة', city: 'اختر المدينة', district: 'اكتب الحي',
+      item: 'اختر المنتج', qty: 'اكتب الكمية بالأرقام من 1 إلى 99999', beneficiaries: 'اكتب عدد المستفيدين بالأرقام', neededBy: 'اختر تاريخ من اليوم لين سنة قدام',
+      receiverName: 'اكتب اسم المستلم', receiverPhone: 'رقم الجوال لازم يبدأ بـ 05 ويكون 10 أرقام', delivery: 'حدد مكان التسليم على الخريطة', city: 'اختر المدينة', district: 'اكتب الحي',
       details: 'التفاصيل 100 حرف بالكثير',
     })
   })

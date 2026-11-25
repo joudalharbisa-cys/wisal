@@ -43,7 +43,9 @@ async function fill(user: ReturnType<typeof userEvent.setup>, qty = '40') {
   await user.type(screen.getByRole('textbox', { name: 'الكمية' }), qty)
   await user.type(screen.getByRole('textbox', { name: 'عدد المستفيدين' }), '40')
   await user.click(screen.getByRole('radio', { name: 'عاجلة' }))
-  await user.type(screen.getByRole('textbox', { name: 'آخر موعد تحتاجه فيه' }), '2099-01-01')
+  await user.click(screen.getByRole('button', { name: 'آخر موعد تحتاجه فيه' }))
+  const days = within(screen.getByRole('dialog', { name: 'اختر التاريخ' })).getAllByRole('button').filter(b => /\d{4}/.test(b.getAttribute('aria-label') ?? '') && !(b as HTMLButtonElement).disabled)
+  await user.click(days[1])
   await user.type(screen.getByRole('textbox', { name: 'اسم المستلم' }), 'أحمد الغامدي')
   await user.type(screen.getByRole('textbox', { name: 'جوال المستلم' }), '0551234567')
 }
@@ -65,7 +67,7 @@ describe('new request', () => {
     const { user } = renderAt()
     await screen.findByDisplayValue('الشرفية')
     await show(user)
-    for (const m of ['اختر المنتج', 'اكتب الكمية بالأرقام من 1 إلى 99999', 'اكتب عدد المستفيدين بالأرقام', 'اختر تاريخ اليوم او بعده', 'اكتب اسم المستلم', 'رقم جوال سعودي يبدأ بـ 05'])
+    for (const m of ['اختر المنتج', 'اكتب الكمية بالأرقام من 1 إلى 99999', 'اكتب عدد المستفيدين بالأرقام', 'اختر تاريخ من اليوم لين سنة قدام', 'اكتب اسم المستلم', 'رقم الجوال لازم يبدأ بـ 05 ويكون 10 أرقام'])
       expect(screen.getByText(m)).toBeInTheDocument()
   })
 
@@ -122,9 +124,20 @@ describe('new request', () => {
     expect(await screen.findByRole('list', { name: 'الجمعيات المناسبة' })).toBeInTheDocument()
   })
 
-  it('the date field allows separators on phone keyboards', async () => {
+  it('number fields keep digits only and the phone stops at 10 digits', async () => {
+    const { user } = renderAt()
+    await user.type(await screen.findByRole('textbox', { name: 'الكمية' }), 'ab١٢.5')
+    expect(screen.getByRole('textbox', { name: 'الكمية' })).toHaveValue('125')
+    await user.type(screen.getByRole('textbox', { name: 'عدد المستفيدين' }), 'x40')
+    expect(screen.getByRole('textbox', { name: 'عدد المستفيدين' })).toHaveValue('40')
+    await user.type(screen.getByRole('textbox', { name: 'جوال المستلم' }), '+٠٥٥١٢٣٤٥٦٧٨٩')
+    expect(screen.getByRole('textbox', { name: 'جوال المستلم' })).toHaveValue('0551234567')
+  })
+
+  it('the deadline is picked from a calendar, never typed', async () => {
     renderAt()
-    expect(await screen.findByRole('textbox', { name: 'آخر موعد تحتاجه فيه' })).not.toHaveAttribute('inputmode', 'numeric')
+    expect(await screen.findByRole('button', { name: 'آخر موعد تحتاجه فيه' })).toHaveTextContent('اختر التاريخ')
+    expect(screen.queryByRole('textbox', { name: 'آخر موعد تحتاجه فيه' })).not.toBeInTheDocument()
   })
 
   it('focus moves to the first problem, then to each new step', async () => {

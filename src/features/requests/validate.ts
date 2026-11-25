@@ -1,13 +1,13 @@
 import { CITIES } from '../orgs/cities'
 import { parseQty, inSaudiBox } from '../inventory/validate'
 import type { RequestDraft, ValidRequest } from './types'
+import { toWesternDigits } from '../../lib/digits'
 
-export const toWesternDigits = (s: string) => s.replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660)).replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06f0))
+export { toWesternDigits }
 
-/** Saudi mobile in any common form → '05XXXXXXXX', else null. */
+/** Saudi mobile: starts with 05 and exactly 10 digits (Arabic-Indic digits accepted). */
 export function parsePhone(s: string): string | null {
-  let d = toWesternDigits(s).replace(/[\s-]/g, '').replace(/^\+/, '')
-  if (d.startsWith('9665')) d = '0' + d.slice(3)
+  const d = toWesternDigits(s).trim()
   return /^05\d{8}$/.test(d) ? d : null
 }
 
@@ -24,6 +24,9 @@ export function parseDateInput(s: string): Date | null {
   return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d ? date : null
 }
 
+/** The latest deadline a request may ask for: the same day next year. */
+export const lastAllowedDay = (today: Date) => new Date(today.getFullYear() + 1, today.getMonth(), today.getDate())
+
 type Field = 'item' | 'qty' | 'beneficiaries' | 'neededBy' | 'receiverName' | 'receiverPhone' | 'delivery' | 'city' | 'district' | 'details'
 
 export function validateRequest(d: RequestDraft, today: Date): { value?: ValidRequest; errors: Partial<Record<Field, string>> } {
@@ -36,11 +39,11 @@ export function validateRequest(d: RequestDraft, today: Date): { value?: ValidRe
   if (!(beneficiaries >= 1 && beneficiaries <= 1_000_000)) e.beneficiaries = 'اكتب عدد المستفيدين بالأرقام'
   const neededBy = parseDateInput(d.neededBy)
   const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-  if (!neededBy || neededBy < startOfToday) e.neededBy = 'اختر تاريخ اليوم او بعده'
+  if (!neededBy || neededBy < startOfToday || neededBy > lastAllowedDay(today)) e.neededBy = 'اختر تاريخ من اليوم لين سنة قدام'
   const name = d.receiverName.trim()
   if (name.length < 2 || name.length > 60) e.receiverName = 'اكتب اسم المستلم'
   const phone = parsePhone(d.receiverPhone)
-  if (!phone) e.receiverPhone = 'رقم جوال سعودي يبدأ بـ 05'
+  if (!phone) e.receiverPhone = 'رقم الجوال لازم يبدأ بـ 05 ويكون 10 أرقام'
   if (!d.delivery || !inSaudiBox(d.delivery)) e.delivery = 'حدد مكان التسليم على الخريطة'
   if (!(CITIES as readonly string[]).includes(d.city)) e.city = 'اختر المدينة'
   const district = d.district.trim()
