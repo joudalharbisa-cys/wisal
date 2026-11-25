@@ -32,6 +32,65 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time;
     }
 
+    // Hospital requests (phase 3+4). One product each; status 0 = open, 1 = sent to a charity.
+    // Created in one batch with requestSecrets/{id} (the 4-digit receipt code only the hospital reads).
+    match /requests/{rid} {
+      function validDelivery(p) {
+        return p is map
+          && p.keys().hasOnly(['lat', 'lng', 'city', 'district', 'details'])
+          && p.keys().hasAll(['lat', 'lng', 'city', 'district', 'details'])
+          && p.lat is number && p.lat >= 16 && p.lat <= 33
+          && p.lng is number && p.lng >= 34 && p.lng <= 56
+          && p.city in ['الرياض', 'جدة', 'مكة المكرمة', 'المدينة المنورة', 'الدمام', 'الطائف', 'أبها', 'تبوك']
+          && isStr(p.district, 1, 60)
+          && isStr(p.details, 0, 100);
+      }
+      function charityOk(d) {
+        let c = get(/databases/$(database)/documents/orgs/$(d.charityId)).data;
+        return d.charityId is string && d.warehouseId is string
+          && c.role == 'charity' && c.status == 'approved' && d.charityName == c.name
+          && exists(/databases/$(database)/documents/orgs/$(d.charityId)/warehouses/$(d.warehouseId));
+      }
+      function validRequest(d) {
+        let required = ['hospitalId', 'hospitalName', 'itemId', 'itemName', 'qty', 'accept', 'priority', 'beneficiaries',
+                        'neededBy', 'receiver', 'delivery', 'status', 'excluded', 'createdAt', 'updatedAt'];
+        return d.keys().hasAll(required)
+          && d.keys().hasOnly(required.concat(['charityId', 'charityName', 'warehouseId']))
+          && d.hospitalId == request.auth.uid
+          && d.hospitalName == myOrg().name
+          && validKey(d.itemId)
+          && d.itemName == getAfter(/databases/$(database)/documents/items/$(d.itemId)).data.name
+          && d.qty is int && d.qty >= 1 && d.qty <= 99999
+          && d.accept in ['new', 'any']
+          && d.priority in ['urgent', 'medium', 'normal']
+          && d.beneficiaries is int && d.beneficiaries >= 1 && d.beneficiaries <= 1000000
+          && d.neededBy is timestamp
+          && d.receiver is map
+          && d.receiver.keys().hasOnly(['name', 'phone']) && d.receiver.keys().hasAll(['name', 'phone'])
+          && isStr(d.receiver.name, 2, 60)
+          && d.receiver.phone is string && d.receiver.phone.matches('^05[0-9]{8}$')
+          && validDelivery(d.delivery)
+          && d.excluded == []
+          && d.createdAt == request.time && d.updatedAt == request.time
+          && existsAfter(/databases/$(database)/documents/requestSecrets/$(rid))
+          && ((d.status == 0 && !('charityId' in d) && !('charityName' in d) && !('warehouseId' in d))
+              || (d.status == 1 && charityOk(d)));
+      }
+      allow create: if isApprovedHospital() && validRequest(request.resource.data);
+      // List queries must filter hospitalId == own uid. Phase 5 adds charity reads and transitions.
+      allow read: if isAdmin() || (signedIn() && resource.data.hospitalId == request.auth.uid);
+    }
+
+    match /requestSecrets/{rid} {
+      allow create: if isApprovedHospital()
+        && request.resource.data.keys().hasOnly(['code', 'hospitalId'])
+        && request.resource.data.keys().hasAll(['code', 'hospitalId'])
+        && request.resource.data.hospitalId == request.auth.uid
+        && request.resource.data.code is string && request.resource.data.code.matches('^[0-9]{4}$')
+        && getAfter(/databases/$(database)/documents/requests/$(rid)).data.hospitalId == request.auth.uid;
+      allow read: if signedIn() && resource.data.hospitalId == request.auth.uid;
+    }
+
     // Collection-group reads (phase 4 ranking): hospitals query charity rows only (where orgRole == 'charity').
     match /{path=**}/stock/{sid} {
       allow read: if canReadStockRow(resource.data);
@@ -79,7 +138,9 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time;
 
-      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
+      // A hospital may read an approved charity's profile (name, canDeliver, workingHours) for the ranking.
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin()
+        || (isApprovedHospital() && resource.data.role == 'charity' && resource.data.status == 'approved'));
       allow list: if isAdmin();
 
       // Owner: only a rejected application can be edited, and only back to pending.
