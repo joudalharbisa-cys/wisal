@@ -63,5 +63,5 @@ it('moves to the app home as soon as the admin approves', async () => {
   const s = setup({ ...base, status: 'pending' } as Org)
   await screen.findByRole('heading', { name: 'طلبك قيد المراجعة' })
   await act(() => s.admin.approve('u1', 'a1'))
-  expect(await screen.findByRole('heading', { name: 'أهلًا، مستشفى الملك فهد' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'مخزوني' })).toBeInTheDocument()
 })

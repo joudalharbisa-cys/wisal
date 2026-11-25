@@ -6,7 +6,7 @@ import LogoMark from '../components/brand/LogoMark'
 import { useServices } from '../services/ServicesContext'
 import { useCurrentSession } from '../session/Guard'
 
-type NavItem = { to: string; label: string }
+type NavItem = { to: string; label: string; end?: boolean }
 
 /** Signed-in frame (approved identity, style B): brand band, top nav, white cards floating over the band. */
 export default function AppShell({ title, sub, action, tall = false, children }: { title: string; sub?: ReactNode; action?: ReactNode; tall?: boolean; children: ReactNode }) {
@@ -20,7 +20,7 @@ export default function AppShell({ title, sub, action, tall = false, children }:
     nav = [{ to: '/admin', label: 'طلبات التسجيل' }]
   } else if (session.kind === 'member' && session.org) {
     who = { label: session.org.name, icon: session.org.role === 'charity' ? HandHeart : Building2 }
-    if (session.org.status === 'approved') nav = [{ to: '/app', label: 'الرئيسية' }]
+    if (session.org.status === 'approved') nav = [{ to: '/app', label: 'مخزوني', end: true }, { to: '/app/network', label: 'مخزون الجهات' }]
   }
   const WhoIcon = who.icon
 
@@ -32,7 +32,7 @@ export default function AppShell({ title, sub, action, tall = false, children }:
           <div className="flex items-center gap-2.5"><LogoMark /><span className="text-lg font-bold">وصال</span></div>
           <nav className="flex flex-wrap gap-1 text-sm">
             {nav.map(n => (
-              <NavLink key={n.to} to={n.to} className={({ isActive }) => `rounded-full px-3.5 py-1.5 transition ${isActive ? 'bg-white/15 font-medium' : 'text-white/70 hover:text-white'}`}>
+              <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `rounded-full px-3.5 py-1.5 transition ${isActive ? 'bg-white/15 font-medium' : 'text-white/70 hover:text-white'}`}>
                 {n.label}
               </NavLink>
             ))}

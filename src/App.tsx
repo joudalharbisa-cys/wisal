@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import AdminReview from './pages/admin/AdminReview'
-import MemberHome from './pages/app/MemberHome'
+import MyStock from './pages/app/MyStock'
 import Login from './pages/auth/Login'
 import Pending from './pages/auth/Pending'
 import Register from './pages/auth/Register'
@@ -15,7 +15,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/pending" element={<Pending />} />
-        <Route path="/app" element={<MemberHome />} />
+        <Route path="/app" element={<MyStock />} />
         <Route path="/admin" element={<AdminReview />} />
         <Route path="*" element={<Navigate to="/app" replace />} />
       </Routes>
