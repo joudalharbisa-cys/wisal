@@ -7,22 +7,30 @@ import {
 } from 'firebase/auth'
 import {
   collection,
+  collectionGroup,
+  deleteDoc,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
   where,
+  writeBatch,
   type DocumentData,
   type Firestore,
 } from 'firebase/firestore'
+import { isValidItemKey, normalizeName, stockId } from '../features/inventory/names'
+import { MAX_QTY, type StockRow, type Warehouse } from '../features/inventory/types'
+import { validateItemName } from '../features/inventory/validate'
 import { toServiceError } from '../features/auth/errors'
 import { CONTRACT } from '../features/orgs/contract'
 import type { Org } from '../features/orgs/types'
 import { getAuthClient, getDb } from '../lib/firebase'
-import { applicationFields, ServiceError, type Services } from './types'
+import { applicationFields, resolveItem, ServiceError, type Services } from './types'
 
 const toDate = (v: unknown) => (v && typeof (v as { toDate?: unknown }).toDate === 'function' ? (v as { toDate: () => Date }).toDate() : (v as Date))
 
@@ -136,18 +144,79 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
       },
     },
     inventory: {
-      watchItems: notYet,
-      watchWarehouses: notYet,
-      watchStock: notYet,
-      watchAllStock: notYet,
-      saveWarehouse: notYet,
-      deleteWarehouse: notYet,
-      setStock: notYet,
-      deleteStock: notYet,
+      watchItems(cb) {
+        return onSnapshot(collection(db(), 'items'), s => cb(s.docs.map(d => ({ key: d.id, name: d.data().name as string }))))
+      },
+      watchWarehouses(uid, cb) {
+        return onSnapshot(collection(db(), 'orgs', uid, 'warehouses'), s =>
+          cb(s.docs.map(d => toWarehouse(d.id, d.data(snap))).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())),
+        )
+      },
+      watchStock(uid, cb) {
+        return onSnapshot(collection(db(), 'orgs', uid, 'stock'), s => cb(s.docs.map(d => toStockRow(d.id, d.data(snap)))))
+      },
+      watchAllStock(cb, onError) {
+        return onSnapshot(
+          collectionGroup(db(), 'stock'),
+          s => cb(s.docs.map(d => toStockRow(d.id, d.data(snap)))),
+          e => onError?.(toServiceError(e)),
+        )
+      },
+      async saveWarehouse(owner, id, draft) {
+        const fields = { name: draft.name.trim(), city: draft.city, district: draft.district.trim(), location: { lat: draft.location.lat, lng: draft.location.lng } }
+        const whs = collection(db(), 'orgs', owner.uid, 'warehouses')
+        if (!id) {
+          const ref = doc(whs)
+          await wrap(setDoc(ref, { ...fields, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+          return ref.id
+        }
+        // Keep the warehouse name/city copied onto its rows in step with the warehouse.
+        const rows = await wrap(getDocs(query(collection(db(), 'orgs', owner.uid, 'stock'), where('warehouseId', '==', id))))
+        const batch = writeBatch(db())
+        batch.update(doc(whs, id), { ...fields, updatedAt: serverTimestamp() })
+        rows.docs.forEach(r => batch.update(r.ref, { warehouseName: fields.name, city: fields.city, updatedAt: serverTimestamp() }))
+        await wrap(batch.commit())
+        return id
+      },
+      async deleteWarehouse(uid, id) {
+        const rows = await wrap(getDocs(query(collection(db(), 'orgs', uid, 'stock'), where('warehouseId', '==', id))))
+        const batch = writeBatch(db())
+        rows.docs.forEach(r => batch.delete(r.ref))
+        batch.delete(doc(db(), 'orgs', uid, 'warehouses', id))
+        await wrap(batch.commit())
+      },
+      async setStock(owner, warehouse, choice, condition, qty) {
+        const wanted = resolveItem(choice, normalizeName)
+        if (!isValidItemKey(wanted.key) || validateItemName(wanted.name) || !Number.isInteger(qty) || qty < 0 || qty > MAX_QTY)
+          throw new ServiceError('invalid-transition', 'bad product or quantity')
+        const itemRef = doc(db(), 'items', wanted.key)
+        const rowRef = doc(db(), 'orgs', owner.uid, 'stock', stockId(warehouse.id, wanted.key, condition))
+        await wrap(
+          runTransaction(db(), async tx => {
+            const [item, row] = [await tx.get(itemRef), await tx.get(rowRef)]
+            const itemName = item.exists() ? (item.data().name as string) : wanted.name
+            if (!item.exists()) tx.set(itemRef, { name: itemName, key: wanted.key, createdBy: owner.uid, createdAt: serverTimestamp() })
+            if (row.exists()) tx.update(rowRef, { qty, updatedAt: serverTimestamp() })
+            else
+              tx.set(rowRef, {
+                orgId: owner.uid, orgName: owner.name, orgRole: owner.role,
+                warehouseId: warehouse.id, warehouseName: warehouse.name, city: warehouse.city,
+                itemId: wanted.key, itemName, condition, qty, reserved: 0, updatedAt: serverTimestamp(),
+              })
+          }),
+        )
+      },
+      async deleteStock(uid, id) {
+        await wrap(deleteDoc(doc(db(), 'orgs', uid, 'stock', id)))
+      },
     },
   }
 }
 
-function notYet(): never {
-  throw new ServiceError('unknown', 'inventory not implemented yet')
+function toWarehouse(id: string, d: DocumentData): Warehouse {
+  return { id, name: d.name, city: d.city, district: d.district, location: { lat: d.location.lat, lng: d.location.lng }, createdAt: toDate(d.createdAt), updatedAt: toDate(d.updatedAt) }
+}
+
+function toStockRow(id: string, d: DocumentData): StockRow {
+  return { ...(d as Omit<StockRow, 'id' | 'updatedAt'>), id, updatedAt: toDate(d.updatedAt) }
 }
