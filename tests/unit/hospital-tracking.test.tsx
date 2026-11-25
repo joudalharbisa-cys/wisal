@@ -18,6 +18,7 @@ function renderAt(over: Partial<HospitalRequest> = {}) {
   const s = createFakeServices({
     users: ['h1', 'c1'].map(uid => ({ uid, email: `${uid}@t.sa`, password: 'x' })), signedIn: 'h1',
     orgs: { h1: { role: 'hospital', name: 'مستشفى الملك فهد', status: 'approved' } as Org, c1: { role: 'charity', name: 'جمعية البر', status: 'approved' } as Org },
+    warehouses: { c1: [{ id: 'wa', name: 'المستودع الرئيسي', city: 'جدة', district: 'النعيم', location: { lat: 21.572, lng: 39.17 }, createdAt: new Date(), updatedAt: new Date() }] },
     requests: [req(over)], codes: { r1: '4827' }, contacts: { r1: { hospitalId: 'h1', name: 'أحمد الغامدي', phone: '0551234567' } },
   })
   render(<ServicesProvider services={s}><MemoryRouter initialEntries={['/app/requests/r1']}><App /></MemoryRouter></ServicesProvider>)
@@ -47,6 +48,12 @@ describe('hospital tracking', () => {
     expect(s._state.requests.get('r1')?.pickup).toMatchObject({ name: 'سعد القحطاني', phone: '0553334444' })
     await user.click(screen.getByRole('button', { name: 'غيّر بيانات المندوب' }))
     expect(screen.getByRole('textbox', { name: 'اسم المندوب' })).toHaveValue('سعد القحطاني')
+  })
+
+  it('pickup tells the hospital where to send its courier and to hand it the code', async () => {
+    renderAt({ status: 4, mode: 'pickup', preparingAt: new Date(), outAt: new Date() })
+    expect(await screen.findByText(/المستودع الرئيسي · جدة، النعيم/)).toBeInTheDocument()
+    expect(await screen.findByText('اعطِ الرمز لمندوبك قبل ما يروح، والجمعية تكتبه لما يستلم.')).toBeInTheDocument()
   })
 
   it('no courier form for delivery requests', async () => {

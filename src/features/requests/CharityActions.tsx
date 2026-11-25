@@ -47,7 +47,7 @@ function CodeEntry({ r, me, result, setResult, busy, setBusy }: {
   return (
     <form noValidate onSubmit={submit} className="mt-4 text-center">
       <span className="mx-auto grid size-12 place-items-center rounded-full bg-accent-light text-accent" aria-hidden><KeyRound className="size-6" /></span>
-      <p className="mt-2 text-xs text-muted">اطلبه من المستلم في المستشفى</p>
+      <p className="mt-2 text-xs text-muted">{r.mode === 'pickup' ? 'اطلبه من مندوب المستشفى' : 'اطلبه من المستلم في المستشفى'}</p>
       <label htmlFor="receipt-code" className="sr-only">رمز الاستلام</label>
       <Input id="receipt-code" dir="ltr" inputMode="numeric" autoComplete="one-time-code" disabled={locked} value={code} onChange={e => setCode(onlyDigits(e.target.value, 4))}
         className="mx-auto mt-3 h-14 w-48 text-center text-3xl font-bold tracking-[0.4em] tabular-nums" />

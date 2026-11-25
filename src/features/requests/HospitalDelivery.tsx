@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Lock, Pencil, Truck, Warehouse } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import { useServices } from '../../services/ServicesContext'
-import type { OrgRef } from '../inventory/types'
+import type { OrgRef, Warehouse as WarehouseDoc } from '../inventory/types'
 import PersonForm from './PersonForm'
 import { personLine } from './timeline'
 import type { HospitalRequest } from './types'
@@ -35,8 +35,11 @@ export function CodeLockNotice({ r, me }: { r: HospitalRequest; me: OrgRef }) {
 
 /** Delivery: who is driving and when. Pickup (statuses 3–4): the hospital's courier, editable. */
 export default function HospitalDelivery({ r, me }: { r: HospitalRequest; me: OrgRef }) {
-  const { requests } = useServices()
+  const { requests, inventory } = useServices()
   const [editing, setEditing] = useState(false)
+  const [warehouses, setWarehouses] = useState<WarehouseDoc[]>([])
+  const pickupCharity = r.mode === 'pickup' && r.status >= 3 && r.status <= 5 ? r.charityId : undefined
+  useEffect(() => (pickupCharity ? inventory.watchWarehouses(pickupCharity, setWarehouses) : undefined), [inventory, pickupCharity])
   if (r.status < 3 || r.status > 5 || !r.mode) return null
 
   if (r.mode === 'delivery') {
@@ -48,14 +51,16 @@ export default function HospitalDelivery({ r, me }: { r: HospitalRequest; me: Or
     )
   }
 
+  const wh = warehouses.find(w => w.id === r.warehouseId)
   const canEdit = r.status <= 4
   const showForm = canEdit && (!r.pickup || editing)
   return (
     <section className={`${CARD} p-6`}>
       <h2 className="flex items-center gap-2 font-bold"><Warehouse className="size-5 text-muted" aria-hidden />استلام من مستودع الجمعية</h2>
       <p className="mt-2 text-sm text-muted">
-        {r.status === 3 ? 'الجمعية تجهز الطلب، وترسل مندوبك يستلمه من مستودعها.' : r.status === 4 ? 'الطلب جاهز للاستلام من مستودع الجمعية.' : 'وصل مندوبك للمستودع.'}
+        {r.status === 3 ? 'الجمعية تجهز الطلب، أرسل مندوبك يستلمه من مستودعها.' : r.status === 4 ? 'الطلب جاهز للاستلام من مستودع الجمعية.' : 'وصل مندوبك للمستودع.'}
       </p>
+      {wh && <p className="mt-2 text-sm font-medium">{wh.name} · {wh.city}، {wh.district}</p>}
       {showForm ? (
         <div className="mt-4">
           <PersonForm labels={{ name: 'اسم المندوب', phone: 'جوال المندوب', date: 'يوم الاستلام' }} submit="حفظ بيانات المندوب" initial={r.pickup}

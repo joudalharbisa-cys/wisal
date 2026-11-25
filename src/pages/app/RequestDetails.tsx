@@ -168,7 +168,7 @@ export default function RequestDetails() {
           ) : r.status >= 2 ? (
             <>
               <div dir="ltr" aria-label="رمز الاستلام" className="mx-auto mt-4 w-fit rounded-card border-2 border-dashed border-accent/50 bg-accent-light px-6 py-3 text-4xl font-bold tracking-[0.4em] tabular-nums">{code ?? '····'}</div>
-              <p className="mt-3 text-xs text-muted">اعطِه للمندوب عند الاستلام بس. الجمعية ما تشوف هذا الرمز.</p>
+              <p className="mt-3 text-xs text-muted">{r.mode === 'pickup' ? 'اعطِ الرمز لمندوبك قبل ما يروح، والجمعية تكتبه لما يستلم.' : 'اعطِه للمندوب عند الاستلام بس. الجمعية ما تشوف هذا الرمز.'}</p>
             </>
           ) : (
             <p className="mt-3 text-sm text-muted">يظهر رمز الاستلام هنا بعد موافقة الجمعية</p>

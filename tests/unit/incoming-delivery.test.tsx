@@ -73,6 +73,7 @@ describe('charity delivery actions', () => {
     expect(await screen.findByText('بانتظار بيانات مندوب المستشفى')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'وصل مندوب المستشفى' }))
     expect(await screen.findByRole('textbox', { name: 'رمز الاستلام' })).toBeInTheDocument()
+    expect(screen.getByText('اطلبه من مندوب المستشفى')).toBeInTheDocument()
     expect(s._state.requests.get('r1')).toMatchObject({ status: 5, mode: 'pickup' })
   })
 
