@@ -9,7 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run --dir tests/unit",
-    "test:rules": "cross-env FIREBASE_EMULATORS_PATH=.firebase-emulators firebase emulators:exec --only firestore --project demo-wesal \"vitest run --dir tests/rules --environment node\"",
+    "test:rules": "cross-env FIREBASE_EMULATORS_PATH=.firebase-emulators firebase emulators:exec --only firestore --project demo-wesal \"vitest run --dir tests/rules --environment node --no-file-parallelism\"",
     "emulators": "cross-env FIREBASE_EMULATORS_PATH=.firebase-emulators firebase emulators:start --only auth,firestore --project demo-wesal",
     "deploy": "npm run build && firebase deploy --only hosting,firestore:rules",
     "predeploy": "node scripts/deploy-env.mjs",

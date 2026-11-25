@@ -8,6 +8,33 @@ service cloud.firestore {
     }
     function isStr(v, min, max) { return v is string && v.size() >= min && v.size() <= max; }
 
+    // Inventory is for approved orgs only (phase 2). Option C: approved orgs read each other's inventory.
+    function isApprovedMember() {
+      return signedIn() && get(/databases/$(database)/documents/orgs/$(request.auth.uid)).data.status == 'approved';
+    }
+    function isOwnerApproved(uid) { return signedIn() && request.auth.uid == uid && isApprovedMember(); }
+    function canReadInventory() { return isAdmin() || isApprovedMember(); }
+    // Product keys are doc ids and part of stock ids.
+    function validKey(k) { return k is string && k.matches('^[^/]+$') && !k.matches('.*__.*'); }
+
+    // Shared product catalogue: grows, never edited or deleted by orgs.
+    match /items/{key} {
+      allow read: if canReadInventory();
+      allow create: if isApprovedMember()
+        && request.resource.data.keys().hasOnly(['name', 'key', 'createdBy', 'createdAt'])
+        && request.resource.data.keys().hasAll(['name', 'key', 'createdBy', 'createdAt'])
+        && request.resource.data.key == key
+        && validKey(key)
+        && isStr(request.resource.data.name, 2, 60)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+    }
+
+    // Every stock row, for the shared page and phase 4 ranking (collection-group queries).
+    match /{path=**}/stock/{sid} {
+      allow read: if canReadInventory();
+    }
+
     // Wesal admins are added by hand in the console; clients may only check their own entry.
     match /admins/{uid} {
       allow get: if signedIn() && request.auth.uid == uid;
@@ -76,6 +103,68 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time;
 
       allow delete: if false;
+
+      match /warehouses/{whId} {
+        function validWarehouse(d) {
+          return d.keys().hasOnly(['name', 'city', 'district', 'location', 'createdAt', 'updatedAt'])
+            && d.keys().hasAll(['name', 'city', 'district', 'location', 'createdAt', 'updatedAt'])
+            && isStr(d.name, 2, 60)
+            && d.city in ['الرياض', 'جدة', 'مكة المكرمة', 'المدينة المنورة', 'الدمام', 'الطائف', 'أبها', 'تبوك']
+            && isStr(d.district, 1, 60)
+            && d.location is map
+            && d.location.keys().hasOnly(['lat', 'lng'])
+            && d.location.keys().hasAll(['lat', 'lng'])
+            && d.location.lat is number && d.location.lat >= 16 && d.location.lat <= 33
+            && d.location.lng is number && d.location.lng >= 34 && d.location.lng <= 56
+            && d.updatedAt == request.time;
+        }
+        allow read: if canReadInventory();
+        allow create: if isOwnerApproved(uid)
+          && validWarehouse(request.resource.data)
+          && request.resource.data.createdAt == request.time;
+        allow update: if isOwnerApproved(uid)
+          && validWarehouse(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isOwnerApproved(uid);
+      }
+
+      // One row per warehouse + product + condition: id = warehouseId__itemId__condition.
+      match /stock/{sid} {
+        function warehousePath(whId) { return /databases/$(database)/documents/orgs/$(uid)/warehouses/$(whId); }
+        function stockCreateOk(d) {
+          let wh = warehousePath(d.warehouseId);
+          let item = /databases/$(database)/documents/items/$(d.itemId);
+          let me = get(/databases/$(database)/documents/orgs/$(uid)).data;
+          return d.keys().hasOnly(['orgId', 'orgName', 'orgRole', 'warehouseId', 'warehouseName', 'city',
+                                   'itemId', 'itemName', 'condition', 'qty', 'reserved', 'updatedAt'])
+            && d.keys().hasAll(['orgId', 'orgName', 'orgRole', 'warehouseId', 'warehouseName', 'city',
+                                'itemId', 'itemName', 'condition', 'qty', 'reserved', 'updatedAt'])
+            && d.orgId == uid
+            && d.warehouseId is string && validKey(d.itemId)
+            && d.condition in ['new', 'used']
+            && sid == d.warehouseId + '__' + d.itemId + '__' + d.condition
+            && existsAfter(wh) && existsAfter(item)
+            && d.orgName == me.name && d.orgRole == me.role
+            && d.warehouseName == getAfter(wh).data.name && d.city == getAfter(wh).data.city
+            && d.itemName == getAfter(item).data.name
+            && d.reserved == 0
+            && d.qty is int && d.qty >= 0 && d.qty <= 99999
+            && d.updatedAt == request.time;
+        }
+        // No item read on update: product and condition are fixed after create (keeps batches under the access limit).
+        function stockUpdateOk(d) {
+          let wh = warehousePath(resource.data.warehouseId);
+          return d.diff(resource.data).affectedKeys().hasOnly(['qty', 'updatedAt', 'warehouseName', 'city'])
+            && d.qty is int && d.qty >= d.reserved && d.qty <= 99999
+            && d.warehouseName == getAfter(wh).data.name && d.city == getAfter(wh).data.city
+            && d.updatedAt == request.time;
+        }
+        allow read: if canReadInventory();
+        allow create: if isOwnerApproved(uid) && stockCreateOk(request.resource.data);
+        allow update: if isOwnerApproved(uid) && stockUpdateOk(request.resource.data);
+        // No existsAfter here, so it works in the same batch as a warehouse delete.
+        allow delete: if isOwnerApproved(uid) && resource.data.reserved == 0;
+      }
     }
   }
 }
