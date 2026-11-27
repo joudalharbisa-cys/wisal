@@ -98,6 +98,29 @@ describe('step log', () => {
     await assertSucceeds(user('a1').collectionGroup('events').get())
     await assertFails(user('h1').collectionGroup('events').get())
   })
+  it('no entries outside a step: alias numbers, number 0 on old requests, non-parties', async () => {
+    await seed('requests/r1', stored({ eventCount: 5, status: 2 }))
+    for (const eid of ['05', '005', '+5', '5']) await assertFails(user('c2').doc(`requests/r1/events/${eid}`).set(ev('verified', 'charity', 'جمعية الشمال')))
+    await assertFails(user('c1').doc('requests/r1/events/05').set(ev('accepted', 'charity', 'جمعية البر')))
+    const old: Record<string, unknown> = stored({ status: 2 })
+    delete old.eventCount
+    await seed('requests/r2', old)
+    await assertFails(user('c2').doc('requests/r2/events/0').set(ev('returned', 'charity', 'جمعية الشمال')))
+  })
+  it('a do-nothing change cannot carry a log entry', async () => {
+    await seed('requests/r1', stored({ status: 2, eventCount: 2 }))
+    const db = user('c1')
+    const b = db.batch()
+    b.update(db.doc('requests/r1'), { meeting: firebase.firestore.FieldValue.delete(), updatedAt: ts(), eventCount: 3 })
+    b.set(db.doc('requests/r1/events/3'), ev('meetingRemoved', 'charity', 'جمعية البر'))
+    await assertFails(b.commit())
+  })
+  it('the entry type must match the step, and admin types are the admin’s only', async () => {
+    await seed('requests/r1', stored())
+    await assertFails(acceptWith('c1', ev('verified', 'charity', 'جمعية البر')))
+    await assertFails(acceptWith('c1', ev('note', 'charity', 'جمعية البر')))
+    await assertSucceeds(acceptWith('c1', ev('accepted', 'charity', 'جمعية البر')))
+  })
   it('the admin never reads the receipt code', async () => {
     await seed('requests/r1', stored({ status: 4 }))
     await seed('requestSecrets/r1', { code: '4827', hospitalId: 'h1' })

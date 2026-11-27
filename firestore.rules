@@ -169,6 +169,7 @@ service cloud.firestore {
       function pickupOk(d) {          // hospital's courier, pickup only, from status 3
         return isOwningHospital() && resource.data.get('mode', '') == 'pickup'
           && resource.data.status >= 3 && resource.data.status <= 4
+          && 'pickup' in changed()
           && validPerson(d.pickup) && d.updatedAt == request.time
           && changed().hasOnly(['eventCount', 'pickup', 'updatedAt']);
       }
@@ -176,6 +177,7 @@ service cloud.firestore {
         let hosp = isOwningHospital();
         let char = isAcceptingCharity();
         return (hosp || char) && resource.data.status >= 2 && resource.data.status <= 5
+          && 'meeting' in changed()
           && d.updatedAt == request.time && changed().hasOnly(['eventCount', 'meeting', 'updatedAt'])
           && (!('meeting' in d)
               || (d.meeting is map
@@ -265,9 +267,42 @@ service cloud.firestore {
             && isStr(d.get('charityName', ''), 0, 100) && isStr(d.get('detail', ''), 0, 400)
             && (!('count' in d) || (d.count is int && d.count >= 0 && d.count <= 5));
         }
-        allow create: if signedIn()
-          && getAfter(/databases/$(database)/documents/requests/$(rid)).data.get('eventCount', 0) == int(eid)
-          && validEvent(request.resource.data) && writerOk(request.resource.data);
+        function reqPath() { return /databases/$(database)/documents/requests/$(rid); }
+        // Written in the same write as its step: the id is exactly the counter after, which is the counter before + 1.
+        function inStep(eid) {
+          let after = getAfter(reqPath()).data.get('eventCount', 0);
+          let before = exists(reqPath()) ? get(reqPath()).data.get('eventCount', 0) : 0;
+          return eid == string(after) && after == before + 1;
+        }
+        // The entry's type matches what this write does to the request; note/returned are the admin's only.
+        function typeOk(d) {
+          let b = exists(reqPath()) ? get(reqPath()).data : {};
+          let a = getAfter(reqPath()).data;
+          let bs = b.get('status', -1);
+          let as = a.get('status', -1);
+          let admin = d.byRole == 'admin';
+          return (!admin || d.type in ['note', 'returned', 'unlocked'])
+            && ((d.type == 'sent' && bs == -1 && as == 1)
+              || (d.type == 'published' && ((bs == -1 && as == 0) || (bs == 0 && b.get('open', true) == false && a.get('open', false) == true)))
+              || (d.type == 'resent' && bs == 0 && as == 1)
+              || (d.type == 'rejected' && !admin && bs == 1 && as == 0)
+              || (d.type == 'returned' && admin && bs == 1 && as == 0)
+              || (d.type == 'taken' && bs == 0 && as == 2)
+              || (d.type == 'accepted' && bs == 1 && as == 2)
+              || (d.type == 'preparing' && bs == 2 && as == 3)
+              || (d.type == 'dispatched' && bs == 3 && as == 4 && a.get('mode', '') == 'delivery')
+              || (d.type == 'ready' && bs == 3 && as == 4 && a.get('mode', '') == 'pickup')
+              || (d.type == 'arrived' && bs == 4 && as == 5)
+              || (d.type == 'pickupSet' && a.get('pickup', null) != b.get('pickup', null))
+              || (d.type == 'meetingSet' && a.get('meeting', null) != null && a.get('meeting', null) != b.get('meeting', null))
+              || (d.type == 'meetingRemoved' && a.get('meeting', null) == null && b.get('meeting', null) != null)
+              || (d.type == 'codeAttempt' && bs == 5 && as == 5 && a.get('codeFails', 0) == b.get('codeFails', 0) + 1)
+              || (d.type == 'verified' && bs == 5 && as == 6)
+              || (d.type == 'unlocked' && b.get('codeFails', 0) > 0 && a.get('codeFails', 0) == 0)
+              || (d.type == 'note' && admin && a.get('adminNote', null) != b.get('adminNote', null)));
+        }
+        allow create: if signedIn() && inStep(eid)
+          && validEvent(request.resource.data) && writerOk(request.resource.data) && typeOk(request.resource.data);
         allow read: if isAdmin()
           || (signedIn() && get(/databases/$(database)/documents/requests/$(rid)).data.hospitalId == request.auth.uid);
       }

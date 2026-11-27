@@ -21,6 +21,9 @@ export function useAdminData(): AdminData {
   return { orgs, requests, stock, failed }
 }
 
+/** Ids of approved charities (only their stock can cover a request). */
+export const approvedCharities = (orgs: OrgWithId[]) => new Set(orgs.filter(o => o.role === 'charity' && o.status === 'approved').map(o => o.id))
+
 /** «مستشفى الملك فهد ← جمعية البر» / «مفتوح» / «بانتظار قراره». */
 export function routeLine(r: HospitalRequest): string {
   if (r.charityName) return `${r.hospitalName} ← ${r.charityName}`

@@ -445,6 +445,8 @@ export function createFakeServices(seed: Seed = {}) {
       async setPickup(hospital, id, courier) {
         const r = actingHospital(hospital, id)
         if (r.mode !== 'pickup' || r.status < 3 || r.status > 4 || !validPerson(courier)) throw new ServiceError('invalid-transition', 'pickup')
+        const same = r.pickup && r.pickup.name === courier.name && r.pickup.phone === courier.phone && r.pickup.eta.getTime() === courier.eta.getTime()
+        if (same) throw new ServiceError('invalid-transition', 'unchanged') // like the rules: a write must change the courier
         state.requests.set(id, { ...r, pickup: { ...courier }, updatedAt: now() })
         log(id, actor(hospital), { type: 'pickupSet', detail: personLine('مندوب المستشفى', courier, 'يجي') })
         emitInv()
@@ -460,7 +462,7 @@ export function createFakeServices(seed: Seed = {}) {
         const r = state.requests.get(id)
         const me = state.current?.uid
         const allowed = !!r && me === by.uid && (r.hospitalId === me || r.charityId === me) && r.status >= 2 && r.status <= 5
-        if (!allowed || (meeting && !/^https:\/\/.+/.test(meeting.link))) throw new ServiceError('invalid-transition', 'meeting')
+        if (!allowed || (meeting && !/^https:\/\/.+/.test(meeting.link)) || (!meeting && !r!.meeting)) throw new ServiceError('invalid-transition', 'meeting')
         const next: HospitalRequest = { ...r!, updatedAt: now() }
         if (meeting) next.meeting = { at: meeting.at, link: meeting.link.trim(), byRole: by.role, byName: by.name }
         else delete next.meeting

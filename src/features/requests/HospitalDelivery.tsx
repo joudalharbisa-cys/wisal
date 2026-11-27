@@ -64,7 +64,11 @@ export default function HospitalDelivery({ r, me }: { r: HospitalRequest; me: Or
       {showForm ? (
         <div className="mt-4">
           <PersonForm labels={{ name: 'اسم المندوب', phone: 'جوال المندوب', date: 'يوم الاستلام' }} submit="حفظ بيانات المندوب" initial={r.pickup}
-            onSubmit={async p => { await requests.setPickup(me, r.id, p); setEditing(false) }} />
+            onSubmit={async p => {
+              const same = r.pickup && r.pickup.name === p.name && r.pickup.phone === p.phone && r.pickup.eta.getTime() === p.eta.getTime()
+              if (!same) await requests.setPickup(me, r.id, p)
+              setEditing(false)
+            }} />
         </div>
       ) : r.pickup ? (
         <div className="mt-4 flex items-start gap-3 rounded-control bg-surface p-3.5 text-sm">

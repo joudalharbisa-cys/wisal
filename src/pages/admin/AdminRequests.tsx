@@ -9,7 +9,7 @@ import Spinner from '../../components/ui/Spinner'
 import { AdminStatus, Marker, type Attention } from '../../features/admin/AdminStatus'
 import { CARD } from '../../features/admin/card'
 import { isLate, isLocked, stageOf, STAGES, uncovered, type Stage } from '../../features/admin/stages'
-import { routeLine, useAdminData } from '../../features/admin/useAdminData'
+import { approvedCharities, routeLine, useAdminData } from '../../features/admin/useAdminData'
 import { PRIORITY_LABEL, type Priority } from '../../lib/labels'
 import { formatDateTime, latestStep } from '../../features/requests/timeline'
 import AppShell from '../../layout/AppShell'
@@ -32,11 +32,12 @@ export default function AdminRequests() {
   if (failed) return <AppShell title="الطلبات"><Alert tone="danger">تعذّر تحميل البيانات، حاول مرة ثانية</Alert></AppShell>
   if (!orgs || !requests || !stock) return <AppShell title="الطلبات"><div className="grid place-items-center rounded-card bg-white p-12 text-primary"><Spinner className="size-7" /></div></AppShell>
 
+  const approved = approvedCharities(orgs)
   const marks = (r: (typeof requests)[number]) => {
     const m: Attention[] = []
     if (isLate(r, now)) m.push('late')
     if (isLocked(r)) m.push('locked')
-    if (uncovered(r, stock)) m.push('uncovered')
+    if (uncovered(r, stock, approved)) m.push('uncovered')
     return m
   }
   const rest = requests.filter(r =>

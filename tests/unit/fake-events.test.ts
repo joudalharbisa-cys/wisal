@@ -62,6 +62,18 @@ describe('fake step log', () => {
     expect(s._state.requests.get(id)?.eventCount).toBe(11)
   })
 
+  it('a do-nothing meeting removal or courier re-save is refused (it would only add a log line)', async () => {
+    const s = make()
+    const { id } = await s.requests.send(H, REQ, { charityId: 'c1', charityName: C1.name, warehouseId: 'wa' })
+    await as(s, 'c1'); await s.requests.accept(C1, id, 'wa')
+    await expect(s.requests.setMeeting(C1, id, null)).rejects.toBeTruthy()
+    await s.requests.startPreparing(C1, id, false)
+    await as(s, 'h1')
+    const courier = { name: 'سعد', phone: '0553334444', eta: new Date(2026, 11, 1, 9) }
+    await s.requests.setPickup(H, id, courier)
+    await expect(s.requests.setPickup(H, id, { ...courier })).rejects.toBeTruthy()
+  })
+
   it('charities cannot read the log', async () => {
     const s = make()
     const { id } = await s.requests.send(H, REQ, null)

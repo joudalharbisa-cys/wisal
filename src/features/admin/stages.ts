@@ -32,13 +32,15 @@ export function isLate(r: HospitalRequest, now: Date): boolean {
 /** Code entry locked after five counted wrong codes. */
 export const isLocked = (r: HospitalRequest) => r.status === 5 && (r.codeFails ?? 0) >= 5
 
-/** An open request no single charity warehouse can cover (same rule as the hospital's ranking). */
-export function uncovered(r: HospitalRequest, rows: StockRow[]): boolean {
+/** An open request no single warehouse of an approved charity can cover (same rule as the hospital's ranking).
+ *  `approved`: ids of approved charities; rows of others don't count. */
+export function uncovered(r: HospitalRequest, rows: StockRow[], approved?: Set<string>): boolean {
   if (r.status !== 0 || !r.open) return false
-  const places = new Set(rows.filter(x => x.orgRole === 'charity').map(x => `${x.orgId}\u0000${x.warehouseId}`))
+  const usable = rows.filter(x => x.orgRole === 'charity' && (!approved || approved.has(x.orgId)))
+  const places = new Set(usable.map(x => `${x.orgId}\u0000${x.warehouseId}`))
   for (const p of places) {
     const [orgId, warehouseId] = p.split('\u0000')
-    if (availableIn(r, warehouseId, rows.filter(x => x.orgId === orgId)) >= r.qty) return false
+    if (availableIn(r, warehouseId, usable.filter(x => x.orgId === orgId)) >= r.qty) return false
   }
   return true
 }

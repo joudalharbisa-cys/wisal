@@ -12,7 +12,7 @@ export function eventSteps(events: RequestEvent[]): Step[] {
       case 'resent': return { label: e.charityName ? `أُرسل ل${e.charityName}` : 'أُرسل لجمعية ثانية', at }
       case 'published': return { label: 'انتشر كطلب مفتوح', at }
       case 'rejected': return { label: `رفضت ${e.byName} الطلب`, at, warn: true, note: reason(e.detail) }
-      case 'returned': return { label: `أرجعت إدارة وصال الطلب من ${e.charityName ?? 'الجمعية'}`, at, warn: true, note: reason(e.detail) }
+      case 'returned': return { label: e.byRole === 'admin' ? `أرجعت إدارة وصال الطلب من ${e.charityName || 'الجمعية'}` : `رجع الطلب للمستشفى (${e.byName})`, at, warn: true, note: reason(e.detail) }
       case 'taken': return { label: `أخذته ${e.byName}`, at }
       case 'accepted': return { label: `وافقت ${e.byName}`, at }
       case 'preparing': return { label: 'بدأ التجهيز', at }
@@ -28,7 +28,7 @@ export function eventSteps(events: RequestEvent[]): Step[] {
           : { label: `محاولة رمز غلط (${e.count ?? '?'} من 5)`, at, warn: true }
       case 'verified': return { label: 'تم التحقق', at }
       case 'unlocked': return { label: 'انفتح إدخال الرمز من جديد', at, note: e.byRole === 'admin' ? 'صفّرته إدارة وصال' : `فتحه ${e.byName}` }
-      case 'note': return { label: 'ملاحظة من إدارة وصال', at, note: e.detail ?? 'انحذفت الملاحظة' }
+      case 'note': return { label: e.byRole === 'admin' ? 'ملاحظة من إدارة وصال' : `ملاحظة من ${e.byName}`, at, note: e.detail ?? 'انحذفت الملاحظة' }
     }
   })
 }

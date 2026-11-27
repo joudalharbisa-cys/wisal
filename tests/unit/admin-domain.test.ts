@@ -41,6 +41,9 @@ describe('admin stages and attention', () => {
     expect(uncovered(open, [row('c1', 'w', 30), row('c1', 'w', 20, 0, 'used')])).toBe(true) // used doesn't count for «جديد بس»
     expect(uncovered(open, [row('c2', 'w', 45, 5)])).toBe(false)
     expect(uncovered(base({ status: 1 }), [])).toBe(false) // only open requests
+    // Only approved charities count (the hospital's ranking ignores pending/rejected ones).
+    expect(uncovered(open, [row('c9', 'w', 99)], new Set(['c1']))).toBe(true)
+    expect(uncovered(open, [row('c1', 'w', 99)], new Set(['c1']))).toBe(false)
   })
 })
 

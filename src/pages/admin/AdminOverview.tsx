@@ -8,7 +8,7 @@ import { eventSteps } from '../../features/admin/adminTimeline'
 import { Marker, type Attention } from '../../features/admin/AdminStatus'
 import { CARD } from '../../features/admin/card'
 import { isLate, isLocked, stageOf, STAGES, uncovered } from '../../features/admin/stages'
-import { useAdminData } from '../../features/admin/useAdminData'
+import { approvedCharities, useAdminData } from '../../features/admin/useAdminData'
 import type { RequestEvent } from '../../features/requests/events'
 import { formatDateTime } from '../../features/requests/timeline'
 import AppShell from '../../layout/AppShell'
@@ -41,7 +41,7 @@ export default function AdminOverview() {
   const attention: [Attention, number][] = [
     ['late', requests.filter(r => isLate(r, now)).length],
     ['locked', requests.filter(isLocked).length],
-    ['uncovered', requests.filter(r => uncovered(r, stock)).length],
+    ['uncovered', requests.filter(r => uncovered(r, stock, approvedCharities(orgs))).length],
   ]
   const byId = new Map(requests.map(r => [r.id, r]))
 
