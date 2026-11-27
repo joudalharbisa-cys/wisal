@@ -56,7 +56,8 @@ service cloud.firestore {
         let required = ['hospitalId', 'hospitalName', 'itemId', 'itemName', 'qty', 'accept', 'priority', 'beneficiaries',
                         'neededBy', 'delivery', 'status', 'open', 'excluded', 'createdAt', 'updatedAt'];
         return d.keys().hasAll(required)
-          && d.keys().hasOnly(required.concat(['charityId', 'charityName', 'warehouseId', 'sentAt', 'publishedAt']))
+          && d.keys().hasOnly(required.concat(['charityId', 'charityName', 'warehouseId', 'sentAt', 'publishedAt', 'eventCount']))
+          && (!('eventCount' in d) || (d.eventCount == 1 && existsAfter(eventPath('1'))))
           && d.hospitalId == request.auth.uid
           && d.hospitalName == myOrg().name
           && validKey(d.itemId)
@@ -97,7 +98,7 @@ service cloud.firestore {
         return resource.data.status == 1 && resource.data.charityId == request.auth.uid && isApprovedCharity()
           && d.status == 2 && ownWarehouse(d.warehouseId) && d.reservation is map
           && d.acceptedAt == request.time && d.updatedAt == request.time
-          && changed().hasOnly(['status', 'warehouseId', 'reservation', 'acceptedAt', 'updatedAt']);
+          && changed().hasOnly(['eventCount', 'status', 'warehouseId', 'reservation', 'acceptedAt', 'updatedAt']);
       }
       function rejectOk(d) {          // 1 → 0, back to the hospital (not open)
         return resource.data.status == 1 && resource.data.charityId == request.auth.uid && isApprovedCharity()
@@ -109,14 +110,14 @@ service cloud.firestore {
           && d.lastRejection.charityName == resource.data.charityName
           && isStr(d.lastRejection.reason, 0, 200) && d.lastRejection.at == request.time
           && d.updatedAt == request.time
-          && changed().hasOnly(['status', 'open', 'charityId', 'charityName', 'warehouseId', 'excluded', 'lastRejection', 'updatedAt']);
+          && changed().hasOnly(['eventCount', 'status', 'open', 'charityId', 'charityName', 'warehouseId', 'excluded', 'lastRejection', 'updatedAt']);
       }
       function takeOk(d) {            // 0 (open) → 2 by any approved charity
         return resource.data.status == 0 && resource.data.get('open', true) == true && isApprovedCharity()
           && d.status == 2 && d.open == false
           && d.charityId == request.auth.uid && d.charityName == myOrg().name && ownWarehouse(d.warehouseId)
           && d.reservation is map && d.acceptedAt == request.time && d.updatedAt == request.time
-          && changed().hasOnly(['status', 'open', 'charityId', 'charityName', 'warehouseId', 'reservation', 'acceptedAt', 'updatedAt']);
+          && changed().hasOnly(['eventCount', 'status', 'open', 'charityId', 'charityName', 'warehouseId', 'reservation', 'acceptedAt', 'updatedAt']);
       }
       // The rejection stays on the request only while it waits for the hospital (readable by the hospital alone).
       // When the hospital moves on, it leaves the request (other charities may read it) for the hospital-only history doc.
@@ -129,13 +130,13 @@ service cloud.firestore {
         return resource.data.hospitalId == request.auth.uid && isApprovedHospital()
           && resource.data.status == 0 && d.status == 1 && d.open == false && charityOk(d)
           && d.sentAt == request.time && d.updatedAt == request.time && movedToHistory(d)
-          && changed().hasOnly(['status', 'open', 'charityId', 'charityName', 'warehouseId', 'sentAt', 'lastRejection', 'updatedAt']);
+          && changed().hasOnly(['eventCount', 'status', 'open', 'charityId', 'charityName', 'warehouseId', 'sentAt', 'lastRejection', 'updatedAt']);
       }
       function publishOk(d) {         // 0 waiting → 0 open by the hospital
         return resource.data.hospitalId == request.auth.uid && isApprovedHospital()
           && resource.data.status == 0 && resource.data.open == false
           && d.status == 0 && d.open == true && d.publishedAt == request.time && d.updatedAt == request.time && movedToHistory(d)
-          && changed().hasOnly(['open', 'publishedAt', 'lastRejection', 'updatedAt']);
+          && changed().hasOnly(['eventCount', 'open', 'publishedAt', 'lastRejection', 'updatedAt']);
       }
       // Phase 6+7 (spec: 2026-11-26-phase6-delivery-design.md): forward steps by the accepting charity,
       // the hospital's pickup courier, an optional meeting, and the counted receipt-code check.
@@ -149,32 +150,32 @@ service cloud.firestore {
         return isAcceptingCharity() && resource.data.status == 2 && d.status == 3
           && d.mode == (myOrg().get('canDeliver', false) == true ? 'delivery' : 'pickup')
           && d.preparingAt == request.time && d.updatedAt == request.time
-          && changed().hasOnly(['status', 'mode', 'preparingAt', 'updatedAt']);
+          && changed().hasOnly(['eventCount', 'status', 'mode', 'preparingAt', 'updatedAt']);
       }
       function outOk(d) {             // 3 → 4: out for delivery (with driver) or ready for pickup
         return isAcceptingCharity() && resource.data.status == 3 && d.status == 4
           && d.outAt == request.time && d.updatedAt == request.time
           && ((resource.data.mode == 'delivery' && validPerson(d.driver)
-               && changed().hasOnly(['status', 'outAt', 'driver', 'updatedAt']))
+               && changed().hasOnly(['eventCount', 'status', 'outAt', 'driver', 'updatedAt']))
               || (resource.data.mode == 'pickup' && !('driver' in d)
-               && changed().hasOnly(['status', 'outAt', 'updatedAt'])));
+               && changed().hasOnly(['eventCount', 'status', 'outAt', 'updatedAt'])));
       }
       function arrivedOk(d) {         // 4 → 5
         return isAcceptingCharity() && resource.data.status == 4 && d.status == 5
           && d.arrivedAt == request.time && d.updatedAt == request.time
-          && changed().hasOnly(['status', 'arrivedAt', 'updatedAt']);
+          && changed().hasOnly(['eventCount', 'status', 'arrivedAt', 'updatedAt']);
       }
       function pickupOk(d) {          // hospital's courier, pickup only, from status 3
         return isOwningHospital() && resource.data.get('mode', '') == 'pickup'
           && resource.data.status >= 3 && resource.data.status <= 4
           && validPerson(d.pickup) && d.updatedAt == request.time
-          && changed().hasOnly(['pickup', 'updatedAt']);
+          && changed().hasOnly(['eventCount', 'pickup', 'updatedAt']);
       }
       function meetingOk(d) {         // either side, statuses 2–5; remove by omitting `meeting`
         let hosp = isOwningHospital();
         let char = isAcceptingCharity();
         return (hosp || char) && resource.data.status >= 2 && resource.data.status <= 5
-          && d.updatedAt == request.time && changed().hasOnly(['meeting', 'updatedAt'])
+          && d.updatedAt == request.time && changed().hasOnly(['eventCount', 'meeting', 'updatedAt'])
           && (!('meeting' in d)
               || (d.meeting is map
                   && d.meeting.keys().hasOnly(['at', 'link', 'byRole', 'byName']) && d.meeting.keys().hasAll(['at', 'link', 'byRole', 'byName'])
@@ -186,7 +187,7 @@ service cloud.firestore {
         return isAcceptingCharity() && resource.data.status == 5 && d.status == 5
           && resource.data.get('codeFails', 0) < 5 && d.codeFails == resource.data.get('codeFails', 0) + 1
           && d.codeAttempt is string && d.codeAttempt.matches('^[0-9]{4}$')
-          && d.updatedAt == request.time && changed().hasOnly(['codeAttempt', 'codeFails', 'updatedAt']);
+          && d.updatedAt == request.time && changed().hasOnly(['eventCount', 'codeAttempt', 'codeFails', 'updatedAt']);
       }
       function stockRow(sid) { return /databases/$(database)/documents/orgs/$(request.auth.uid)/stock/$(sid); }
       function deducted(sid, n) {
@@ -203,19 +204,49 @@ service cloud.firestore {
         return isAcceptingCharity() && resource.data.status == 5 && d.status == 6
           && resource.data.get('codeAttempt', '') == get(/databases/$(database)/documents/requestSecrets/$(rid)).data.code
           && d.verifiedAt == request.time && d.updatedAt == request.time
-          && changed().hasOnly(['status', 'verifiedAt', 'updatedAt'])
+          && changed().hasOnly(['eventCount', 'status', 'verifiedAt', 'updatedAt'])
           && deductionOk(resource.data.reservation);
       }
       function unlockOk(d) {          // the hospital re-opens code entry after 5 counted attempts
         return isOwningHospital() && resource.data.status == 5 && resource.data.get('codeFails', 0) >= 5
-          && d.codeFails == 0 && d.updatedAt == request.time && changed().hasOnly(['codeFails', 'updatedAt']);
+          && d.codeFails == 0 && d.updatedAt == request.time && changed().hasOnly(['eventCount', 'codeFails', 'updatedAt']);
       }
 
-      allow update: if signedIn() && (acceptOk(request.resource.data) || rejectOk(request.resource.data)
+      // Step log: the counter only moves by one, together with its event (requests/{rid}/events/{n}).
+      function eventPath(n) { return /databases/$(database)/documents/requests/$(rid)/events/$(n); }
+      function counterOk(d) {
+        return !('eventCount' in changed())
+          || (d.eventCount == resource.data.get('eventCount', 0) + 1 && existsAfter(eventPath(string(d.eventCount))));
+      }
+
+      allow update: if signedIn() && counterOk(request.resource.data) && (acceptOk(request.resource.data) || rejectOk(request.resource.data)
         || takeOk(request.resource.data) || chooseAgainOk(request.resource.data) || publishOk(request.resource.data)
         || prepareOk(request.resource.data) || outOk(request.resource.data) || arrivedOk(request.resource.data)
         || pickupOk(request.resource.data) || meetingOk(request.resource.data) || attemptOk(request.resource.data)
         || verifyOk(request.resource.data) || unlockOk(request.resource.data));
+    
+
+      // Append-only step log (admin oversight). Written in the same transaction as the step, as the next number.
+      match /events/{eid} {
+        function writerOk(d) {
+          return (isAdmin() && d.byRole == 'admin' && d.byName == 'إدارة وصال')
+            || (!isAdmin() && isApprovedMember() && d.byRole == myOrg().role && d.byName == myOrg().name);
+        }
+        function validEvent(d) {
+          return d.keys().hasOnly(['type', 'at', 'byRole', 'byName', 'charityName', 'detail', 'count'])
+            && d.keys().hasAll(['type', 'at', 'byRole', 'byName'])
+            && d.type in ['sent', 'published', 'resent', 'rejected', 'returned', 'taken', 'accepted', 'preparing', 'dispatched',
+                          'ready', 'arrived', 'pickupSet', 'meetingSet', 'meetingRemoved', 'codeAttempt', 'verified', 'unlocked', 'note']
+            && d.at == request.time
+            && isStr(d.get('charityName', ''), 0, 100) && isStr(d.get('detail', ''), 0, 400)
+            && (!('count' in d) || (d.count is int && d.count >= 0 && d.count <= 5));
+        }
+        allow create: if signedIn()
+          && getAfter(/databases/$(database)/documents/requests/$(rid)).data.get('eventCount', 0) == int(eid)
+          && validEvent(request.resource.data) && writerOk(request.resource.data);
+        allow read: if isAdmin()
+          || (signedIn() && get(/databases/$(database)/documents/requests/$(rid)).data.hospitalId == request.auth.uid);
+      }
     }
 
     match /requestSecrets/{rid} {
@@ -257,6 +288,10 @@ service cloud.firestore {
     // Collection-group reads (phase 4 ranking): hospitals query charity rows only (where orgRole == 'charity').
     match /{path=**}/stock/{sid} {
       allow read: if canReadStockRow(resource.data);
+    }
+    // The admin's activity feed reads every request's log at once.
+    match /{path=**}/events/{eid} {
+      allow read: if isAdmin();
     }
 
     // Wesal admins are added by hand in the console; clients may only check their own entry.

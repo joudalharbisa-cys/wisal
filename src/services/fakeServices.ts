@@ -7,6 +7,8 @@ import { makeReceiptCode } from '../features/requests/code'
 import { planReservation } from '../features/requests/reserve'
 import { parsePhone, toWesternDigits } from '../features/requests/validate'
 import type { Contact, HospitalRequest, Rejection } from '../features/requests/types'
+import type { Actor, EventInput, RequestEvent } from '../features/requests/events'
+import { formatDateTime, personLine } from '../features/requests/timeline'
 import { applicationFields, resolveItem, ServiceError, type AuthUser, type Services } from './types'
 
 type Seed = {
@@ -40,6 +42,7 @@ export function createFakeServices(seed: Seed = {}) {
     codes: new Map<string, string>(Object.entries(seed.codes ?? {})),
     contacts: new Map<string, { hospitalId: string } & Contact>(Object.entries(seed.contacts ?? {})),
     history: new Map<string, { hospitalId: string; lastRejection: Rejection }>(),
+    events: new Map<string, RequestEvent[]>(),
   }
   if (seed.signedIn) {
     const u = state.users.find(x => x.uid === seed.signedIn)
@@ -94,6 +97,14 @@ export function createFakeServices(seed: Seed = {}) {
     queueMicrotask(f)
     return () => { invCbs.delete(f) }
   }
+  /** Like the services: every step appends the next numbered entry to the request's log (and bumps its counter). */
+  const log = (id: string, by: Actor, input: EventInput) => {
+    const r = state.requests.get(id)!
+    const n = (r.eventCount ?? 0) + 1
+    state.requests.set(id, { ...r, eventCount: n })
+    state.events.set(id, [...(state.events.get(id) ?? []), { ...input, n, requestId: id, at: now(), byRole: by.role, byName: by.name }])
+  }
+  const actor = (o: { role: Actor['role']; name: string }): Actor => ({ role: o.role, name: o.name })
   /** Like the rules: the rejection leaves the request (other charities may read it) for the hospital-only history. */
   const moveRejection = (r: HospitalRequest): HospitalRequest => {
     if (!r.lastRejection) return r
@@ -314,6 +325,7 @@ export function createFakeServices(seed: Seed = {}) {
         }
         const next: HospitalRequest = { ...r, status: 2, open: false, charityId: charity.uid, charityName: o.name, warehouseId, reservation: plan, acceptedAt: t, updatedAt: t }
         state.requests.set(id, next)
+        log(id, actor({ role: 'charity', name: o.name }), { type: sent ? 'accepted' : 'taken' })
         emitInv()
       },
       async reject(charity, id, reason) {
@@ -323,6 +335,7 @@ export function createFakeServices(seed: Seed = {}) {
         const t = now()
         const { charityId: _c, charityName, warehouseId: _w, ...rest } = r
         state.requests.set(id, { ...rest, status: 0, open: false, excluded: [...r.excluded, charity.uid], lastRejection: { charityName: charityName ?? '', reason: reason.trim(), at: t }, updatedAt: t })
+        log(id, actor(charity), { type: 'rejected', ...(reason.trim() ? { detail: reason.trim() } : {}) })
         emitInv()
       },
       async chooseAgain(hospital, id, choice) {
@@ -331,6 +344,7 @@ export function createFakeServices(seed: Seed = {}) {
         if (r.status !== 0 || c?.role !== 'charity' || c.status !== 'approved' || c.name !== choice.charityName) throw new ServiceError('invalid-transition', 'cannot choose')
         const t = now()
         state.requests.set(id, { ...moveRejection(r), ...choice, status: 1, open: false, sentAt: t, updatedAt: t })
+        log(id, actor(hospital), { type: 'resent', charityName: choice.charityName })
         emitInv()
       },
       async startPreparing(charity, id, canDeliver) {
@@ -339,6 +353,7 @@ export function createFakeServices(seed: Seed = {}) {
         if (!r || r.status !== 2 || r.charityId !== charity.uid) throw new ServiceError('invalid-transition', 'not ready')
         const t = now()
         state.requests.set(id, { ...r, status: 3, mode: canDeliver ? 'delivery' : 'pickup', preparingAt: t, updatedAt: t })
+        log(id, actor(charity), { type: 'preparing' })
         emitInv()
       },
       async dispatch(charity, id, driver) {
@@ -348,6 +363,7 @@ export function createFakeServices(seed: Seed = {}) {
         if ((r.mode === 'delivery') !== !!driver || (driver && !validPerson(driver))) throw new ServiceError('invalid-transition', 'driver')
         const t = now()
         state.requests.set(id, { ...r, status: 4, outAt: t, ...(driver ? { driver: { ...driver } } : {}), updatedAt: t })
+        log(id, actor(charity), driver ? { type: 'dispatched', detail: personLine('السائق', driver, 'يوصل تقريبًا') } : { type: 'ready' })
         emitInv()
       },
       async markArrived(charity, id) {
@@ -356,6 +372,7 @@ export function createFakeServices(seed: Seed = {}) {
         if (!r || r.status !== 4 || r.charityId !== charity.uid) throw new ServiceError('invalid-transition', 'not out')
         const t = now()
         state.requests.set(id, { ...r, status: 5, arrivedAt: t, updatedAt: t })
+        log(id, actor(charity), { type: 'arrived' })
         emitInv()
       },
       async submitCode(charity, id, code) {
@@ -365,9 +382,10 @@ export function createFakeServices(seed: Seed = {}) {
         const fails = r.codeFails ?? 0
         if (fails >= 5) return { result: 'locked' as const, remaining: 0 }
         const attempt = toWesternDigits(code).trim()
-        const counted = { ...r, codeFails: fails + 1, updatedAt: now() }
-        state.requests.set(id, counted)
-        if (attempt !== state.codes.get(id)) { emitInv(); return { result: 'wrong' as const, remaining: 5 - counted.codeFails } }
+        state.requests.set(id, { ...r, codeFails: fails + 1, updatedAt: now() })
+        log(id, actor(charity), { type: 'codeAttempt', count: fails + 1 })
+        const counted = state.requests.get(id)!
+        if (attempt !== state.codes.get(id)) { emitInv(); return { result: 'wrong' as const, remaining: 5 - (counted.codeFails ?? 0) } }
         const t = now()
         for (const [sid, n] of Object.entries(r.reservation ?? {})) {
           const k = `${charity.uid}/${sid}`
@@ -375,19 +393,22 @@ export function createFakeServices(seed: Seed = {}) {
           state.stock.set(k, { ...row, qty: row.qty - n, reserved: row.reserved - n, updatedAt: t })
         }
         state.requests.set(id, { ...counted, status: 6, verifiedAt: t, updatedAt: t })
+        log(id, actor(charity), { type: 'verified' })
         emitInv()
-        return { result: 'ok' as const, remaining: 5 - counted.codeFails }
+        return { result: 'ok' as const, remaining: 5 - (counted.codeFails ?? 0) }
       },
       async setPickup(hospital, id, courier) {
         const r = actingHospital(hospital, id)
         if (r.mode !== 'pickup' || r.status < 3 || r.status > 4 || !validPerson(courier)) throw new ServiceError('invalid-transition', 'pickup')
         state.requests.set(id, { ...r, pickup: { ...courier }, updatedAt: now() })
+        log(id, actor(hospital), { type: 'pickupSet', detail: personLine('مندوب المستشفى', courier, 'يجي') })
         emitInv()
       },
       async unlockCode(hospital, id) {
         const r = actingHospital(hospital, id)
         if (r.status !== 5 || (r.codeFails ?? 0) < 5) throw new ServiceError('invalid-transition', 'not locked')
         state.requests.set(id, { ...r, codeFails: 0, updatedAt: now() })
+        log(id, actor(hospital), { type: 'unlocked' })
         emitInv()
       },
       async setMeeting(by, id, meeting) {
@@ -399,6 +420,7 @@ export function createFakeServices(seed: Seed = {}) {
         if (meeting) next.meeting = { at: meeting.at, link: meeting.link.trim(), byRole: by.role, byName: by.name }
         else delete next.meeting
         state.requests.set(id, next)
+        log(id, actor(by), meeting ? { type: 'meetingSet', detail: `${formatDateTime(meeting.at)} · ${meeting.link.trim()}` } : { type: 'meetingRemoved' })
         emitInv()
       },
       async publishOpen(hospital, id) {
@@ -406,7 +428,16 @@ export function createFakeServices(seed: Seed = {}) {
         if (r.status !== 0 || r.open) throw new ServiceError('invalid-transition', 'not waiting')
         const t = now()
         state.requests.set(id, { ...moveRejection(r), open: true, publishedAt: t, updatedAt: t })
+        log(id, actor(hospital), { type: 'published' })
         emitInv()
+      },
+      watchEvents(id, cb) {
+        return listenReq(() => {
+          const r = state.requests.get(id)
+          const me = state.current?.uid
+          const ok = !!r && !!me && (r.hospitalId === me || state.admins.has(me))
+          cb(ok ? [...(state.events.get(id) ?? [])] : [])
+        })
       },
       watchRejection(id, cb) {
         return listenReq(() => { const h = state.history.get(id); cb(h && h.hospitalId === state.current?.uid ? h.lastRejection : null) })
@@ -452,6 +483,7 @@ export function createFakeServices(seed: Seed = {}) {
           status: choice ? 1 : 0, open: !choice, excluded: [], ...(choice ?? {}), ...(choice ? { sentAt: t } : { publishedAt: t }), createdAt: t, updatedAt: t,
         })
         state.contacts.set(id, { hospitalId: hospital.uid, ...req.receiver })
+        log(id, actor(hospital), choice ? { type: 'sent', charityName: choice.charityName } : { type: 'published' })
         const code = makeReceiptCode()
         state.codes.set(id, code)
         emitInv()

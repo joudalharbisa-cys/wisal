@@ -69,6 +69,8 @@ export type HospitalRequest = {
   pickup?: Person
   meeting?: Meeting
   codeFails?: number
+  /** Number of step-log entries (requests/{id}/events/1…n); absent on requests created before the log. */
+  eventCount?: number
   /** Receiver kept inside requests created before phase 5 (no requestContacts doc). */
   legacyReceiver?: Contact
   charityId?: string

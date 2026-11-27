@@ -17,6 +17,7 @@ import {
   onSnapshot,
   query,
   runTransaction,
+  type Transaction,
   serverTimestamp,
   setDoc,
   Timestamp,
@@ -32,6 +33,8 @@ import { validateItemName } from '../features/inventory/validate'
 import { makeReceiptCode } from '../features/requests/code'
 import { planReservation } from '../features/requests/reserve'
 import type { HospitalRequest } from '../features/requests/types'
+import type { Actor, EventInput, RequestEvent } from '../features/requests/events'
+import { formatDateTime, personLine } from '../features/requests/timeline'
 import { toWesternDigits } from '../features/requests/validate'
 import { toServiceError } from '../features/auth/errors'
 import { CONTRACT } from '../features/orgs/contract'
@@ -63,18 +66,29 @@ async function wrap<T>(p: Promise<T>): Promise<T> {
 export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {}): Services {
   const auth = () => deps.auth ?? getAuthClient()
   const db = () => deps.db ?? getDb()
+  type Built = { change: Record<string, unknown>; event: EventInput }
+  /** One step of a request, in a transaction: read it, let `build` check it (and read/write other docs), apply the change,
+   *  bump `eventCount` and append the matching entry to its step log (requests/{id}/events/{n}). */
+  const step = (id: string, by: Actor, build: (r: HospitalRequest, raw: DocumentData, tx: Transaction) => Promise<Built>) =>
+    runTransaction(db(), async tx => {
+      const ref = doc(db(), 'requests', id)
+      const s = await tx.get(ref)
+      if (!s.exists()) throw new ServiceError('invalid-transition', 'taken')
+      const raw = s.data()
+      const { change, event } = await build(toRequest(id, raw), raw, tx)
+      const n = ((raw.eventCount as number | undefined) ?? 0) + 1
+      tx.update(ref, { ...change, eventCount: n })
+      tx.set(doc(db(), 'requests', id, 'events', String(n)), defined({ ...event, at: serverTimestamp(), byRole: by.role, byName: by.name }))
+    })
+  const simple = (id: string, by: Actor, change: Record<string, unknown>, event: EventInput) => wrap(step(id, by, async () => ({ change, event })))
   /** The hospital moves on after a rejection: the request change plus, if there is one, moving the rejection off the
-   *  request (other charities may read it) into the hospital-only requestHistory — one batch, as the rules require. */
-  const moveOn = async (id: string, change: Record<string, unknown>) => {
-    const ref = doc(db(), 'requests', id)
-    const raw = (await wrap(getDoc(ref))).data()
-    const batch = writeBatch(db())
-    if (raw?.lastRejection) {
-      batch.set(doc(db(), 'requestHistory', id), { hospitalId: raw.hospitalId, lastRejection: raw.lastRejection })
-      batch.update(ref, { ...change, lastRejection: deleteField() })
-    } else batch.update(ref, change)
-    await wrap(batch.commit())
-  }
+   *  request (other charities may read it) into the hospital-only requestHistory — one transaction, as the rules require. */
+  const moveOn = (by: Actor, id: string, change: Record<string, unknown>, event: EventInput) =>
+    wrap(step(id, by, async (_r, raw, tx) => {
+      if (!raw.lastRejection) return { change, event }
+      tx.set(doc(db(), 'requestHistory', id), { hospitalId: raw.hospitalId, lastRejection: raw.lastRejection })
+      return { change: { ...change, lastRejection: deleteField() }, event }
+    }))
   const snap = { serverTimestamps: 'estimate' } as const
 
   return {
@@ -254,6 +268,13 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
           e => (isDenied(e) ? cb(null) : onError?.(toServiceError(e))),
         )
       },
+      watchEvents(id, cb) {
+        return onSnapshot(
+          collection(db(), 'requests', id, 'events'),
+          s => cb(s.docs.map(d => toEvent(id, d.id, d.data(snap))).sort((a, b) => a.n - b.n)),
+          () => cb([]),
+        )
+      },
       watchRejection(id, cb) {
         return onSnapshot(
           doc(db(), 'requestHistory', id),
@@ -283,14 +304,9 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
         )
       },
       async accept(charity, id, warehouseId) {
-        const reqRef = doc(db(), 'requests', id)
         const taken = () => new ServiceError('invalid-transition', 'taken')
         try {
-          await runTransaction(db(), async tx => {
-            let snapR
-            try { snapR = await tx.get(reqRef) } catch (e) { if (isDenied(e)) throw taken(); throw e }
-            if (!snapR.exists()) throw taken()
-            const r = toRequest(snapR.id, snapR.data())
+          await step(id, charity, async (r, _raw, tx) => {
             const sent = r.status === 1 && r.charityId === charity.uid
             const open = r.status === 0 && r.open
             if (!sent && !open) throw taken()
@@ -303,10 +319,13 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
               const row = rows.find(x => x.id === sid)!
               tx.update(doc(db(), 'orgs', charity.uid, 'stock', sid), { reserved: row.reserved + n, updatedAt: serverTimestamp() })
             }
-            tx.update(reqRef, sent
-              ? { status: 2, warehouseId, reservation: plan, acceptedAt: serverTimestamp(), updatedAt: serverTimestamp() }
-              : { status: 2, open: false, charityId: charity.uid, charityName: charity.name, warehouseId, reservation: plan,
-                  acceptedAt: serverTimestamp(), updatedAt: serverTimestamp() })
+            return {
+              change: sent
+                ? { status: 2, warehouseId, reservation: plan, acceptedAt: serverTimestamp(), updatedAt: serverTimestamp() }
+                : { status: 2, open: false, charityId: charity.uid, charityName: charity.name, warehouseId, reservation: plan,
+                    acceptedAt: serverTimestamp(), updatedAt: serverTimestamp() },
+              event: { type: sent ? 'accepted' : 'taken' },
+            }
           })
         } catch (e) {
           if (e instanceof ServiceError) throw e
@@ -315,79 +334,89 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
         }
       },
       async reject(charity, id, reason) {
-        const reqRef = doc(db(), 'requests', id)
-        await wrap(runTransaction(db(), async tx => {
-          const s = await tx.get(reqRef)
-          if (!s.exists()) throw new ServiceError('invalid-transition', 'taken')
-          const r = toRequest(s.id, s.data())
+        await wrap(step(id, charity, async r => {
           if (r.status !== 1 || r.charityId !== charity.uid) throw new ServiceError('invalid-transition', 'taken')
-          tx.update(reqRef, {
-            status: 0, open: false, charityId: deleteField(), charityName: deleteField(), warehouseId: deleteField(),
-            excluded: [...r.excluded, charity.uid],
-            lastRejection: { charityName: r.charityName ?? '', reason: reason.trim(), at: serverTimestamp() },
-            updatedAt: serverTimestamp(),
-          })
+          return {
+            change: {
+              status: 0, open: false, charityId: deleteField(), charityName: deleteField(), warehouseId: deleteField(),
+              excluded: [...r.excluded, charity.uid],
+              lastRejection: { charityName: r.charityName ?? '', reason: reason.trim(), at: serverTimestamp() },
+              updatedAt: serverTimestamp(),
+            },
+            event: { type: 'rejected', detail: reason.trim() || undefined },
+          }
         }))
       },
-      async chooseAgain(_hospital, id, choice) {
-        await moveOn(id, { status: 1, open: false, ...choice, sentAt: serverTimestamp(), updatedAt: serverTimestamp() })
+      async chooseAgain(hospital, id, choice) {
+        await moveOn(hospital, id, { status: 1, open: false, ...choice, sentAt: serverTimestamp(), updatedAt: serverTimestamp() }, { type: 'resent', charityName: choice.charityName })
       },
-      async startPreparing(_charity, id, canDeliver) {
-        await wrap(updateDoc(doc(db(), 'requests', id), { status: 3, mode: canDeliver ? 'delivery' : 'pickup', preparingAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+      async startPreparing(charity, id, canDeliver) {
+        await simple(id, charity, { status: 3, mode: canDeliver ? 'delivery' : 'pickup', preparingAt: serverTimestamp(), updatedAt: serverTimestamp() }, { type: 'preparing' })
       },
-      async dispatch(_charity, id, driver) {
-        await wrap(updateDoc(doc(db(), 'requests', id), {
+      async dispatch(charity, id, driver) {
+        await simple(id, charity, {
           status: 4, outAt: serverTimestamp(), updatedAt: serverTimestamp(),
           ...(driver ? { driver: { name: driver.name.trim(), phone: driver.phone, eta: Timestamp.fromDate(driver.eta) } } : {}),
-        }))
+        }, driver ? { type: 'dispatched', detail: personLine('السائق', { ...driver, name: driver.name.trim() }, 'يوصل تقريبًا') } : { type: 'ready' })
       },
-      async markArrived(_charity, id) {
-        await wrap(updateDoc(doc(db(), 'requests', id), { status: 5, arrivedAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+      async markArrived(charity, id) {
+        await simple(id, charity, { status: 5, arrivedAt: serverTimestamp(), updatedAt: serverTimestamp() }, { type: 'arrived' })
       },
       async submitCode(charity, id, code) {
         const ref = doc(db(), 'requests', id)
-        let r: HospitalRequest
-        try { r = toRequest(id, (await getDoc(ref)).data() ?? {}) } catch (e) { throw isDenied(e) ? new ServiceError('invalid-transition', 'taken') : new ServiceError('network') }
-        const fails = r.codeFails ?? 0
-        if (fails >= 5) return { result: 'locked', remaining: 0 }
-        // 1) Store and count the attempt. 2) Close only if the stored attempt matches (the rules compare it with the secret).
+        const attempt = toWesternDigits(code).trim()
+        // 1) Store and count the attempt (and log it, without the digits). 2) Close only if the stored attempt matches:
+        //    the rules compare it with the secret; the same transaction deducts the stock and logs «verified».
+        let fails: number
         try {
-          await updateDoc(ref, { codeAttempt: toWesternDigits(code).trim(), codeFails: fails + 1, updatedAt: serverTimestamp() })
+          fails = await runTransaction(db(), async tx => {
+            const snapR = await tx.get(ref)
+            if (!snapR.exists()) throw new ServiceError('invalid-transition', 'taken')
+            const raw = snapR.data()
+            const f = (raw.codeFails as number | undefined) ?? 0
+            if (f >= 5) return f
+            const n = ((raw.eventCount as number | undefined) ?? 0) + 1
+            tx.update(ref, { codeAttempt: attempt, codeFails: f + 1, updatedAt: serverTimestamp(), eventCount: n })
+            tx.set(doc(db(), 'requests', id, 'events', String(n)), { type: 'codeAttempt', count: f + 1, at: serverTimestamp(), byRole: charity.role, byName: charity.name })
+            return f
+          })
         } catch (e) {
+          if (e instanceof ServiceError) throw e
           if (isDenied(e)) return { result: 'locked', remaining: 0 }
           throw new ServiceError('network')
         }
+        if (fails >= 5) return { result: 'locked', remaining: 0 }
         const remaining = 5 - (fails + 1)
-        // The rules require stock rows to carry the warehouse's current name/city: rewrite them so a stale row can't block closing.
-        let wh: DocumentData = {}
-        try { wh = (await getDoc(doc(db(), 'orgs', charity.uid, 'warehouses', r.warehouseId ?? ''))).data() ?? {} } catch { throw new ServiceError('network') }
-        const place = typeof wh.name === 'string' && typeof wh.city === 'string' ? { warehouseName: wh.name, city: wh.city } : {}
-        const batch = writeBatch(db())
-        batch.update(ref, { status: 6, verifiedAt: serverTimestamp(), updatedAt: serverTimestamp() })
-        for (const [sid, n] of Object.entries(r.reservation ?? {}))
-          batch.update(doc(db(), 'orgs', charity.uid, 'stock', sid), { qty: increment(-n), reserved: increment(-n), ...place, updatedAt: serverTimestamp() })
         try {
-          await batch.commit()
+          await step(id, charity, async (r, _raw, tx) => {
+            // The rules require stock rows to carry the warehouse's current name/city: rewrite them so a stale row can't block closing.
+            const wh = (await tx.get(doc(db(), 'orgs', charity.uid, 'warehouses', r.warehouseId ?? '-'))).data() ?? {}
+            const place = typeof wh.name === 'string' && typeof wh.city === 'string' ? { warehouseName: wh.name, city: wh.city } : {}
+            for (const [sid, n] of Object.entries(r.reservation ?? {}))
+              tx.update(doc(db(), 'orgs', charity.uid, 'stock', sid), { qty: increment(-n), reserved: increment(-n), ...place, updatedAt: serverTimestamp() })
+            return { change: { status: 6, verifiedAt: serverTimestamp(), updatedAt: serverTimestamp() }, event: { type: 'verified' } }
+          })
           return { result: 'ok', remaining }
         } catch (e) {
           if (isDenied(e)) return { result: 'wrong', remaining }
           throw new ServiceError('network')
         }
       },
-      async setPickup(_hospital, id, courier) {
-        await wrap(updateDoc(doc(db(), 'requests', id), { pickup: { name: courier.name.trim(), phone: courier.phone, eta: Timestamp.fromDate(courier.eta) }, updatedAt: serverTimestamp() }))
+      async setPickup(hospital, id, courier) {
+        const p = { name: courier.name.trim(), phone: courier.phone, eta: courier.eta }
+        await simple(id, hospital, { pickup: { ...p, eta: Timestamp.fromDate(p.eta) }, updatedAt: serverTimestamp() }, { type: 'pickupSet', detail: personLine('مندوب المستشفى', p, 'يجي') })
       },
-      async unlockCode(_hospital, id) {
-        await wrap(updateDoc(doc(db(), 'requests', id), { codeFails: 0, updatedAt: serverTimestamp() }))
+      async unlockCode(hospital, id) {
+        await simple(id, hospital, { codeFails: 0, updatedAt: serverTimestamp() }, { type: 'unlocked' })
       },
       async setMeeting(by, id, meeting) {
-        await wrap(updateDoc(doc(db(), 'requests', id), {
+        await simple(id, by, {
           meeting: meeting ? { at: Timestamp.fromDate(meeting.at), link: meeting.link.trim(), byRole: by.role, byName: by.name } : deleteField(),
           updatedAt: serverTimestamp(),
-        }))
+        }, meeting ? { type: 'meetingSet', detail: `${formatDateTime(meeting.at)} · ${meeting.link.trim()}` } : { type: 'meetingRemoved' })
       },
-      async publishOpen(_hospital, id) {
-        await moveOn(id, { open: true, publishedAt: serverTimestamp(), updatedAt: serverTimestamp() })
+      async publishOpen(hospital, id) {
+        await moveOn(hospital, id, { open: true, publishedAt: serverTimestamp(), updatedAt: serverTimestamp() }, { type: 'published' })
       },
       async loadCandidates(itemId) {
         const found = await wrap(getDocs(query(collectionGroup(db(), 'stock'), where('orgRole', '==', 'charity'), where('itemId', '==', itemId))))
@@ -420,8 +449,11 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
           hospitalId: hospital.uid, hospitalName: hospital.name, itemId: wanted.key, itemName, qty: req.qty, accept: req.accept, priority: req.priority,
           beneficiaries: req.beneficiaries, neededBy: Timestamp.fromDate(req.neededBy), delivery: { ...req.delivery },
           status: choice ? 1 : 0, open: !choice, ...(choice ?? {}), ...(choice ? { sentAt: serverTimestamp() } : { publishedAt: serverTimestamp() }),
-          excluded: [], createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+          excluded: [], createdAt: serverTimestamp(), updatedAt: serverTimestamp(), eventCount: 1,
         })
+        batch.set(doc(db(), 'requests', ref.id, 'events', '1'), defined({
+          type: choice ? 'sent' : 'published', charityName: choice?.charityName, at: serverTimestamp(), byRole: hospital.role, byName: hospital.name,
+        }))
         batch.set(doc(db(), 'requestSecrets', ref.id), { code, hospitalId: hospital.uid })
         batch.set(doc(db(), 'requestContacts', ref.id), { hospitalId: hospital.uid, name: req.receiver.name, phone: req.receiver.phone })
         await wrap(batch.commit())
@@ -433,7 +465,18 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
 
 const isDenied = (e: unknown) => (e as { code?: string }).code === 'permission-denied'
 
-function toRequest(id: string, d: DocumentData): HospitalRequest {
+/** Drops undefined fields (Firestore refuses them). */
+function defined<T extends Record<string, unknown>>(o: T): T {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T
+}
+
+function toEvent(requestId: string, eid: string, d: DocumentData): RequestEvent {
+  return { ...(d as Omit<RequestEvent, 'n' | 'requestId' | 'at'>), n: Number(eid), requestId, at: toDate(d.at) }
+}
+
+function toRequest(id: string, raw: DocumentData): HospitalRequest {
+  // The last typed code attempt never leaves the service layer (after verification it equals the receipt code).
+  const { codeAttempt: _attempt, ...d } = raw
   return {
     ...(d as Omit<HospitalRequest, 'id'>), id, excluded: (d.excluded as string[]) ?? [],
     // Before phase 5 there was no `open`: a status-0 request was open.
