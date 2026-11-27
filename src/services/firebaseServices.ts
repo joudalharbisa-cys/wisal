@@ -17,6 +17,8 @@ import {
   onSnapshot,
   query,
   runTransaction,
+  limit,
+  orderBy,
   type Transaction,
   serverTimestamp,
   setDoc,
@@ -173,6 +175,26 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
             reviewedAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           }),
+        )
+      },
+      watchAllOrgs(cb, onError) {
+        return onSnapshot(collection(db(), 'orgs'), s => cb(s.docs.map(d => ({ ...toOrg(d.data(snap)), id: d.id }))), e => onError?.(toServiceError(e)))
+      },
+      watchAllRequests(cb, onError) {
+        return onSnapshot(
+          collection(db(), 'requests'),
+          s => cb(s.docs.map(d => toRequest(d.id, d.data(snap))).sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())),
+          e => onError?.(toServiceError(e)),
+        )
+      },
+      watchAllStock(cb, onError) {
+        return onSnapshot(collectionGroup(db(), 'stock'), s => cb(s.docs.map(d => toStockRow(d.id, d.data(snap)))), e => onError?.(toServiceError(e)))
+      },
+      watchRecentEvents(max, cb, onError) {
+        return onSnapshot(
+          query(collectionGroup(db(), 'events'), orderBy('at', 'desc'), limit(max)),
+          s => cb(s.docs.map(d => toEvent(d.ref.parent.parent!.id, d.id, d.data(snap)))),
+          e => onError?.(toServiceError(e)),
         )
       },
     },

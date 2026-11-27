@@ -261,9 +261,9 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/requests/$(rid)).data.status >= 4;
     }
 
-    // The latest rejection once the hospital moved on (phase 6 timeline): the hospital only.
+    // The latest rejection once the hospital moved on (phase 6 timeline): the hospital and the admin.
     match /requestHistory/{rid} {
-      allow read: if signedIn() && resource.data.hospitalId == request.auth.uid;
+      allow read: if isAdmin() || (signedIn() && resource.data.hospitalId == request.auth.uid);
       allow create, update: if isApprovedHospital()
         && request.resource.data.keys().hasOnly(['hospitalId', 'lastRejection'])
         && request.resource.data.keys().hasAll(['hospitalId', 'lastRejection'])
@@ -280,9 +280,9 @@ service cloud.firestore {
         && isStr(request.resource.data.name, 2, 60)
         && request.resource.data.phone is string && request.resource.data.phone.matches('^05[0-9]{8}$')
         && getAfter(/databases/$(database)/documents/requests/$(rid)).data.hospitalId == request.auth.uid;
-      allow read: if signedIn() && (resource.data.hospitalId == request.auth.uid
+      allow read: if isAdmin() || (signedIn() && (resource.data.hospitalId == request.auth.uid
         || (get(/databases/$(database)/documents/requests/$(rid)).data.get('charityId', null) == request.auth.uid
-            && get(/databases/$(database)/documents/requests/$(rid)).data.status >= 2));
+            && get(/databases/$(database)/documents/requests/$(rid)).data.status >= 2)));
     }
 
     // Collection-group reads (phase 4 ranking): hospitals query charity rows only (where orgRole == 'charity').

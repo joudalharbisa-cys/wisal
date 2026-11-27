@@ -82,5 +82,21 @@ describe('step log on the emulator', () => {
     expect(JSON.stringify(log)).not.toContain(code)
     // Charities don't read the log.
     expect(await next<RequestEvent[]>(cb => C1.s.requests.watchEvents(id, cb), () => true)).toEqual([])
+
+    // The admin sees everything: all requests, organisations, stock rows, the latest entries across requests.
+    const A = await client('ev-a', 'hospital', 'مدير')
+    await env.withSecurityRulesDisabled(async ctx => {
+      await ctx.firestore().doc(`orgs/${A.me.uid}`).delete()
+      await ctx.firestore().doc(`admins/${A.me.uid}`).set({ name: 'مدير' })
+    })
+    expect((await next<HospitalRequest[]>(cb => A.s.admin.watchAllRequests(cb), l => l.length > 0)).map(r => r.id)).toContain(id)
+    expect((await next(cb => A.s.admin.watchAllOrgs(cb), l => l.length >= 3)).length).toBeGreaterThanOrEqual(3)
+    expect((await next(cb => A.s.admin.watchAllStock(cb), l => l.length >= 2)).length).toBeGreaterThanOrEqual(2)
+    const recent = await next<RequestEvent[]>(cb => A.s.admin.watchRecentEvents(3, cb), l => l.length === 3)
+    expect(recent.map(e => e.type)).toEqual(['verified', 'codeAttempt', 'codeAttempt'])
+    expect(recent[0].requestId).toBe(id)
+    expect((await next<RequestEvent[]>(cb => A.s.requests.watchEvents(id, cb), l => l.length === 11)).length).toBe(11)
+    expect(await next(cb => A.s.requests.watchContact(id, cb), x => !!x)).toEqual({ name: 'أحمد الغامدي', phone: '0551234567' })
+    expect(await next(cb => A.s.requests.watchCode(id, cb), () => true)).toBeNull()
   }, 60000)
 })

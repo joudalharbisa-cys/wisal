@@ -63,7 +63,9 @@ export function createFakeServices(seed: Seed = {}) {
   const emitOrg = (uid: string) => {
     orgCbs.get(uid)?.forEach(cb => cb(state.orgs.get(uid) ?? null))
     pendingCbs.forEach(cb => cb(pendingList()))
+    invCbs.forEach(f => f()) // oversight lists follow org changes too
   }
+  const adminNow = () => !!state.current && state.admins.has(state.current.uid)
   const mustOrg = (uid: string) => {
     const o = state.orgs.get(uid)
     if (!o) throw new ServiceError('invalid-transition', 'no org')
@@ -222,6 +224,18 @@ export function createFakeServices(seed: Seed = {}) {
         const t = now()
         state.orgs.set(orgId, { ...o, status: 'rejected', rejectReason: reason.trim(), reviewedBy: adminUid, reviewedAt: t, updatedAt: t })
         emitOrg(orgId)
+      },
+      watchAllOrgs(cb, onError) {
+        return listenReq(() => cb(adminNow() ? [...state.orgs.entries()].map(([id, o]) => ({ ...o, id })) : []), onError)
+      },
+      watchAllRequests(cb, onError) {
+        return listenReq(() => cb(adminNow() ? [...state.requests.values()].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()) : []), onError)
+      },
+      watchAllStock(cb, onError) {
+        return listenReq(() => cb(adminNow() ? [...state.stock.values()] : []), onError)
+      },
+      watchRecentEvents(max, cb, onError) {
+        return listenReq(() => cb(adminNow() ? [...state.events.values()].flat().sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, max) : []), onError)
       },
     },
     inventory: {

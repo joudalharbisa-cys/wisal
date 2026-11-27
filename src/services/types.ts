@@ -37,6 +37,13 @@ export interface Services {
     watchPending(cb: (orgs: OrgWithId[]) => void): Unsubscribe
     approve(orgId: string, adminUid: string): Promise<void>
     reject(orgId: string, adminUid: string, reason: string): Promise<void>
+    /** Oversight (admin only; anyone else gets []): every organisation, request and stock row, live. */
+    watchAllOrgs(cb: (orgs: OrgWithId[]) => void, onError?: (e: ServiceError) => void): Unsubscribe
+    /** Newest activity first. */
+    watchAllRequests(cb: (r: HospitalRequest[]) => void, onError?: (e: ServiceError) => void): Unsubscribe
+    watchAllStock(cb: (rows: StockRow[]) => void, onError?: (e: ServiceError) => void): Unsubscribe
+    /** The latest `max` step-log entries across all requests, newest first. */
+    watchRecentEvents(max: number, cb: (e: RequestEvent[]) => void, onError?: (e: ServiceError) => void): Unsubscribe
   }
   inventory: {
     /** Products stored in the database (the UI merges SEED_ITEMS). */
