@@ -35,7 +35,7 @@ import { validateItemName } from '../features/inventory/validate'
 import { makeReceiptCode } from '../features/requests/code'
 import { planReservation } from '../features/requests/reserve'
 import type { HospitalRequest } from '../features/requests/types'
-import type { Actor, EventInput, RequestEvent } from '../features/requests/events'
+import { ADMIN_ACTOR, type Actor, type EventInput, type RequestEvent } from '../features/requests/events'
 import { formatDateTime, personLine } from '../features/requests/timeline'
 import { toWesternDigits } from '../features/requests/validate'
 import { toServiceError } from '../features/auth/errors'
@@ -87,9 +87,11 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
    *  request (other charities may read it) into the hospital-only requestHistory — one transaction, as the rules require. */
   const moveOn = (by: Actor, id: string, change: Record<string, unknown>, event: EventInput) =>
     wrap(step(id, by, async (_r, raw, tx) => {
-      if (!raw.lastRejection) return { change, event }
+      // An admin return note goes away once the hospital moves on (the rules require it).
+      const base = raw.adminReturn ? { ...change, adminReturn: deleteField() } : change
+      if (!raw.lastRejection) return { change: base, event }
       tx.set(doc(db(), 'requestHistory', id), { hospitalId: raw.hospitalId, lastRejection: raw.lastRejection })
-      return { change: { ...change, lastRejection: deleteField() }, event }
+      return { change: { ...base, lastRejection: deleteField() }, event }
     }))
   const snap = { serverTimestamps: 'estimate' } as const
 
@@ -176,6 +178,34 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
             updatedAt: serverTimestamp(),
           }),
         )
+      },
+      async resetCode(id) {
+        await wrap(step(id, ADMIN_ACTOR, async r => {
+          if (r.status !== 5 || (r.codeFails ?? 0) < 1) throw new ServiceError('invalid-transition', 'reset')
+          return { change: { codeFails: 0, updatedAt: serverTimestamp() }, event: { type: 'unlocked' } }
+        }))
+      },
+      async returnToHospital(id, reason) {
+        const why = reason.trim()
+        if (why.length < 3 || why.length > 200) throw new ServiceError('invalid-transition', 'return')
+        await wrap(step(id, ADMIN_ACTOR, async r => {
+          if (r.status !== 1) throw new ServiceError('invalid-transition', 'return')
+          return {
+            change: {
+              status: 0, open: false, charityId: deleteField(), charityName: deleteField(), warehouseId: deleteField(),
+              adminReturn: { charityName: r.charityName ?? '', reason: why, at: serverTimestamp() }, updatedAt: serverTimestamp(),
+            },
+            event: { type: 'returned', charityName: r.charityName ?? '', detail: why },
+          }
+        }))
+      },
+      async setNote(id, text) {
+        const note = text?.trim() ?? null
+        if (note !== null && (note.length < 2 || note.length > 300)) throw new ServiceError('invalid-transition', 'note')
+        await wrap(step(id, ADMIN_ACTOR, async () => ({
+          change: { adminNote: note ? { text: note, at: serverTimestamp() } : deleteField(), updatedAt: serverTimestamp() },
+          event: note ? { type: 'note', detail: note } : { type: 'note' },
+        })))
       },
       watchAllOrgs(cb, onError) {
         return onSnapshot(collection(db(), 'orgs'), s => cb(s.docs.map(d => ({ ...toOrg(d.data(snap)), id: d.id }))), e => onError?.(toServiceError(e)))
@@ -511,6 +541,8 @@ function toRequest(id: string, raw: DocumentData): HospitalRequest {
     driver: d.driver ? { ...d.driver, eta: toDate(d.driver.eta) } : undefined,
     pickup: d.pickup ? { ...d.pickup, eta: toDate(d.pickup.eta) } : undefined,
     meeting: d.meeting ? { ...d.meeting, at: toDate(d.meeting.at) } : undefined,
+    adminNote: d.adminNote ? { text: d.adminNote.text, at: toDate(d.adminNote.at) } : undefined,
+    adminReturn: d.adminReturn ? { ...d.adminReturn, at: toDate(d.adminReturn.at) } : undefined,
   }
 }
 

@@ -7,7 +7,7 @@ import { makeReceiptCode } from '../features/requests/code'
 import { planReservation } from '../features/requests/reserve'
 import { parsePhone, toWesternDigits } from '../features/requests/validate'
 import type { Contact, HospitalRequest, Rejection } from '../features/requests/types'
-import type { Actor, EventInput, RequestEvent } from '../features/requests/events'
+import { ADMIN_ACTOR, type Actor, type EventInput, type RequestEvent } from '../features/requests/events'
 import { formatDateTime, personLine } from '../features/requests/timeline'
 import { applicationFields, resolveItem, ServiceError, type AuthUser, type Services } from './types'
 
@@ -108,7 +108,9 @@ export function createFakeServices(seed: Seed = {}) {
   }
   const actor = (o: { role: Actor['role']; name: string }): Actor => ({ role: o.role, name: o.name })
   /** Like the rules: the rejection leaves the request (other charities may read it) for the hospital-only history. */
-  const moveRejection = (r: HospitalRequest): HospitalRequest => {
+  const moveRejection = (withReturn: HospitalRequest): HospitalRequest => {
+    // Moving on also clears an admin return note (the rules require it).
+    const { adminReturn: _returned, ...r } = withReturn
     if (!r.lastRejection) return r
     state.history.set(r.id, { hospitalId: r.hospitalId, lastRejection: r.lastRejection })
     const { lastRejection: _moved, ...rest } = r
@@ -224,6 +226,35 @@ export function createFakeServices(seed: Seed = {}) {
         const t = now()
         state.orgs.set(orgId, { ...o, status: 'rejected', rejectReason: reason.trim(), reviewedBy: adminUid, reviewedAt: t, updatedAt: t })
         emitOrg(orgId)
+      },
+      async resetCode(id) {
+        const r = state.requests.get(id)
+        if (!adminNow() || !r || r.status !== 5 || (r.codeFails ?? 0) < 1) throw new ServiceError('invalid-transition', 'reset')
+        state.requests.set(id, { ...r, codeFails: 0, updatedAt: now() })
+        log(id, ADMIN_ACTOR, { type: 'unlocked' })
+        emitInv()
+      },
+      async returnToHospital(id, reason) {
+        const r = state.requests.get(id)
+        const why = reason.trim()
+        if (!adminNow() || !r || r.status !== 1 || why.length < 3 || why.length > 200) throw new ServiceError('invalid-transition', 'return')
+        const t = now()
+        const { charityId: _c, charityName, warehouseId: _w, ...rest } = r
+        state.requests.set(id, { ...rest, status: 0, open: false, adminReturn: { charityName: charityName ?? '', reason: why, at: t }, updatedAt: t })
+        log(id, ADMIN_ACTOR, { type: 'returned', charityName: charityName ?? '', detail: why })
+        emitInv()
+      },
+      async setNote(id, text) {
+        const r = state.requests.get(id)
+        const note = text?.trim() ?? null
+        if (!adminNow() || !r || (note !== null && (note.length < 2 || note.length > 300)) || (note === null && !r.adminNote)) throw new ServiceError('invalid-transition', 'note')
+        const t = now()
+        const next: HospitalRequest = { ...r, updatedAt: t }
+        if (note) next.adminNote = { text: note, at: t }
+        else delete next.adminNote
+        state.requests.set(id, next)
+        log(id, ADMIN_ACTOR, note ? { type: 'note', detail: note } : { type: 'note' })
+        emitInv()
       },
       watchAllOrgs(cb, onError) {
         return listenReq(() => cb(adminNow() ? [...state.orgs.entries()].map(([id, o]) => ({ ...o, id })) : []), onError)

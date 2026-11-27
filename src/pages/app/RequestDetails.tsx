@@ -11,6 +11,7 @@ import { rankCharities } from '../../features/requests/rank'
 import RankingList from '../../features/requests/RankingList'
 import HospitalDelivery, { CodeLockNotice } from '../../features/requests/HospitalDelivery'
 import MeetingCard from '../../features/requests/MeetingCard'
+import AdminNoteCard from '../../features/requests/AdminNoteCard'
 import Timeline from '../../features/requests/RequestTimeline'
 import Button from '../../components/ui/Button'
 import { useCurrentSession } from '../../session/Guard'
@@ -113,12 +114,12 @@ export default function RequestDetails() {
     <AppShell title={`${r.itemName} · ${r.qty}`} sub={<span className="flex items-center gap-2"><PriorityBadge priority={r.priority} /> أُرسل {longDate(r.createdAt)}</span>}>
       {/* One centred column; the receipt code joins at the bottom once the request is out for delivery / ready for pickup. */}
       <div className="mx-auto max-w-3xl space-y-6">
-          {waiting && r.lastRejection && (
+          {waiting && (r.lastRejection || r.adminReturn) && (
             <section className="flex flex-wrap items-start gap-4 rounded-card border border-medium/30 bg-white p-5 shadow-sm">
               <span className="grid size-10 shrink-0 place-items-center rounded-full bg-medium/10 text-medium" aria-hidden><CircleAlert className="size-5" /></span>
               <div className="min-w-56 flex-1">
-                <h2 className="font-bold">رفضت {r.lastRejection.charityName} الطلب</h2>
-                {r.lastRejection.reason && <p className="mt-1 text-sm text-muted">السبب: {r.lastRejection.reason}</p>}
+                <h2 className="font-bold">{r.lastRejection ? `رفضت ${r.lastRejection.charityName} الطلب` : `أرجعت إدارة وصال الطلب من ${r.adminReturn!.charityName}`}</h2>
+                {(r.lastRejection ?? r.adminReturn)!.reason && <p className="mt-1 text-sm text-muted">السبب: {(r.lastRejection ?? r.adminReturn)!.reason}</p>}
                 <p className="mt-1 text-xs text-muted">ما يوصل الطلب لأي جمعية لين تختار جمعية ثانية او تنشره كطلب مفتوح.</p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -140,6 +141,7 @@ export default function RequestDetails() {
               ))}
             </ol>
           </section>
+          <AdminNoteCard note={r.adminNote} />
           {hospital && <CodeLockNotice r={r} me={hospital} />}
           <section className={`${CARD} p-6`}>
             <h2 className="mb-5 font-bold">سجل الطلب</h2>

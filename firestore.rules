@@ -129,14 +129,15 @@ service cloud.firestore {
       function chooseAgainOk(d) {     // 0 → 1 by the hospital
         return resource.data.hospitalId == request.auth.uid && isApprovedHospital()
           && resource.data.status == 0 && d.status == 1 && d.open == false && charityOk(d)
-          && d.sentAt == request.time && d.updatedAt == request.time && movedToHistory(d)
-          && changed().hasOnly(['eventCount', 'status', 'open', 'charityId', 'charityName', 'warehouseId', 'sentAt', 'lastRejection', 'updatedAt']);
+          && d.sentAt == request.time && d.updatedAt == request.time && movedToHistory(d) && !('adminReturn' in d)
+          && changed().hasOnly(['eventCount', 'status', 'open', 'charityId', 'charityName', 'warehouseId', 'sentAt', 'lastRejection', 'adminReturn', 'updatedAt']);
       }
       function publishOk(d) {         // 0 waiting → 0 open by the hospital
         return resource.data.hospitalId == request.auth.uid && isApprovedHospital()
           && resource.data.status == 0 && resource.data.open == false
           && d.status == 0 && d.open == true && d.publishedAt == request.time && d.updatedAt == request.time && movedToHistory(d)
-          && changed().hasOnly(['eventCount', 'open', 'publishedAt', 'lastRejection', 'updatedAt']);
+          && !('adminReturn' in d)
+          && changed().hasOnly(['eventCount', 'open', 'publishedAt', 'lastRejection', 'adminReturn', 'updatedAt']);
       }
       // Phase 6+7 (spec: 2026-11-26-phase6-delivery-design.md): forward steps by the accepting charity,
       // the hospital's pickup courier, an optional meeting, and the counted receipt-code check.
@@ -212,6 +213,28 @@ service cloud.firestore {
           && d.codeFails == 0 && d.updatedAt == request.time && changed().hasOnly(['eventCount', 'codeFails', 'updatedAt']);
       }
 
+      // Admin oversight actions (spec: 2026-11-25-admin-oversight-design.md): nothing else is writable by the admin.
+      function adminResetOk(d) {      // zero the code attempts at arrival (locked or not)
+        return isAdmin() && resource.data.status == 5 && resource.data.get('codeFails', 0) >= 1
+          && d.codeFails == 0 && d.updatedAt == request.time && changed().hasOnly(['eventCount', 'codeFails', 'updatedAt']);
+      }
+      function adminReturnOk(d) {     // 1 → 0 back to the hospital; the charity is not counted as rejecting
+        return isAdmin() && resource.data.status == 1 && d.status == 0 && d.open == false
+          && !('charityId' in d) && !('charityName' in d) && !('warehouseId' in d)
+          && d.adminReturn is map
+          && d.adminReturn.keys().hasOnly(['charityName', 'reason', 'at']) && d.adminReturn.keys().hasAll(['charityName', 'reason', 'at'])
+          && d.adminReturn.charityName == resource.data.charityName
+          && isStr(d.adminReturn.reason, 3, 200) && d.adminReturn.at == request.time
+          && d.updatedAt == request.time
+          && changed().hasOnly(['eventCount', 'status', 'open', 'charityId', 'charityName', 'warehouseId', 'adminReturn', 'updatedAt']);
+      }
+      function adminNoteOk(d) {       // a note both sides see; replace or remove
+        return isAdmin() && d.updatedAt == request.time && 'adminNote' in changed() && changed().hasOnly(['eventCount', 'adminNote', 'updatedAt'])
+          && (!('adminNote' in d)
+              || (d.adminNote is map && d.adminNote.keys().hasOnly(['text', 'at']) && d.adminNote.keys().hasAll(['text', 'at'])
+                  && isStr(d.adminNote.text, 2, 300) && d.adminNote.text == d.adminNote.text.trim() && d.adminNote.at == request.time));
+      }
+
       // Step log: the counter only moves by one, together with its event (requests/{rid}/events/{n}).
       function eventPath(n) { return /databases/$(database)/documents/requests/$(rid)/events/$(n); }
       function counterOk(d) {
@@ -223,7 +246,8 @@ service cloud.firestore {
         || takeOk(request.resource.data) || chooseAgainOk(request.resource.data) || publishOk(request.resource.data)
         || prepareOk(request.resource.data) || outOk(request.resource.data) || arrivedOk(request.resource.data)
         || pickupOk(request.resource.data) || meetingOk(request.resource.data) || attemptOk(request.resource.data)
-        || verifyOk(request.resource.data) || unlockOk(request.resource.data));
+        || verifyOk(request.resource.data) || unlockOk(request.resource.data)
+        || adminResetOk(request.resource.data) || adminReturnOk(request.resource.data) || adminNoteOk(request.resource.data));
     
 
       // Append-only step log (admin oversight). Written in the same transaction as the step, as the next number.

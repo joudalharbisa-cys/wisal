@@ -71,6 +71,10 @@ export type HospitalRequest = {
   codeFails?: number
   /** Number of step-log entries (requests/{id}/events/1…n); absent on requests created before the log. */
   eventCount?: number
+  /** A note from the Wesal admin, shown to both sides. */
+  adminNote?: { text: string; at: Date }
+  /** Set when the admin sent an unanswered request back to the hospital; cleared when the hospital moves on. */
+  adminReturn?: { charityName: string; reason: string; at: Date }
   /** Receiver kept inside requests created before phase 5 (no requestContacts doc). */
   legacyReceiver?: Contact
   charityId?: string

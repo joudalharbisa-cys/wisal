@@ -44,6 +44,12 @@ export interface Services {
     watchAllStock(cb: (rows: StockRow[]) => void, onError?: (e: ServiceError) => void): Unsubscribe
     /** The latest `max` step-log entries across all requests, newest first. */
     watchRecentEvents(max: number, cb: (e: RequestEvent[]) => void, onError?: (e: ServiceError) => void): Unsubscribe
+    /** Admin actions, each logged as «إدارة وصال». Zero the code attempts (status 5, at least one attempt). */
+    resetCode(id: string): Promise<void>
+    /** Send a request waiting for a charity's answer (status 1) back to the hospital, with a reason (3–200). */
+    returnToHospital(id: string, reason: string): Promise<void>
+    /** A note both sides see (2–300 characters after trimming); null removes it. */
+    setNote(id: string, text: string | null): Promise<void>
   }
   inventory: {
     /** Products stored in the database (the UI merges SEED_ITEMS). */

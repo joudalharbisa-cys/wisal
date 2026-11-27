@@ -14,6 +14,7 @@ import { longDate, RequestStatusBadge } from '../../features/requests/RequestSta
 import { availableIn } from '../../features/requests/reserve'
 import CharityActions from '../../features/requests/CharityActions'
 import MeetingCard from '../../features/requests/MeetingCard'
+import AdminNoteCard from '../../features/requests/AdminNoteCard'
 import Timeline from '../../features/requests/RequestTimeline'
 import { ACCEPT_LABEL, type Contact, type HospitalRequest } from '../../features/requests/types'
 import AppShell from '../../layout/AppShell'
@@ -117,6 +118,7 @@ export default function IncomingRequest() {
     <AppShell title={`${r.itemName} · ${r.qty}`} sub={<span className="flex items-center gap-2"><PriorityBadge priority={r.priority} /> من {r.hospitalName}</span>}>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
         <div className="space-y-6">
+        <AdminNoteCard note={r.adminNote} />
         <section className={`${CARD} grid gap-x-8 px-6 py-3 sm:grid-cols-2`}>
           <Row icon={<CalendarDays className="size-4" />} label="يحتاجه قبل">{longDate(r.neededBy)}</Row>
           <Row icon={<Users className="size-4" />} label="عدد المستفيدين"><span className="tabular-nums">{r.beneficiaries}</span></Row>
