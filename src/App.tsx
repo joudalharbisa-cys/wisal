@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import AdminReview from './pages/admin/AdminReview'
+import ChangePassword from './pages/account/ChangePassword'
 import AdminOverview from './pages/admin/AdminOverview'
 import AdminOrgs from './pages/admin/AdminOrgs'
 import AdminOrg from './pages/admin/AdminOrg'
@@ -32,6 +33,8 @@ export default function App() {
         <Route path="/app/incoming/:id" element={<IncomingRequest />} />
         <Route path="/app/warehouses/new" element={<WarehouseForm />} />
         <Route path="/app/warehouses/:id" element={<WarehouseForm />} />
+        <Route path="/app/password" element={<ChangePassword />} />
+        <Route path="/admin/password" element={<ChangePassword />} />
         <Route path="/admin" element={<AdminOverview />} />
         <Route path="/admin/orgs" element={<AdminOrgs />} />
         <Route path="/admin/orgs/:id" element={<AdminOrg />} />

@@ -25,6 +25,8 @@ export interface Services {
     signIn(email: string, password: string): Promise<void>
     signUp(email: string, password: string): Promise<AuthUser>
     signOut(): Promise<void>
+    /** The signed-in account changes its own password (current one required; new one 8+ characters). */
+    changePassword(current: string, next: string): Promise<void>
   }
   orgs: {
     /** cb(null) only when the org is confirmed missing; failures go to onError. */

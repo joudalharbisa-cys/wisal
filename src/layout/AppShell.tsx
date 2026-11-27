@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { NavLink } from 'react-router-dom'
-import { Building2, HandHeart, LogOut, ShieldCheck } from 'lucide-react'
+import { Link, NavLink } from 'react-router-dom'
+import { Building2, HandHeart, KeyRound, LogOut, ShieldCheck } from 'lucide-react'
 import BrandBand from '../components/brand/BrandBand'
 import LogoMark from '../components/brand/LogoMark'
 import { useServices } from '../services/ServicesContext'
@@ -38,6 +38,8 @@ export default function AppShell({ title, sub, action, tall = false, children }:
         : [{ to: '/app', label: 'الطلبات الواردة', end: true, badge: waiting }, { to: '/app/stock', label: 'مخزوني' }]
   }
   const WhoIcon = who.icon
+  // Change password: the admin and approved organisations (their area's own page, so the route guard needs no change).
+  const passwordPath = session.kind === 'admin' ? '/admin/password' : session.kind === 'member' && session.org?.status === 'approved' ? '/app/password' : null
 
   return (
     <div className="relative min-h-screen bg-surface">
@@ -58,6 +60,11 @@ export default function AppShell({ title, sub, action, tall = false, children }:
               <span className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm">
                 <WhoIcon className="size-4 text-accent-light" /> {who.label}
               </span>
+            )}
+            {passwordPath && (
+              <Link to={passwordPath} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-white/80 transition hover:bg-white/10 hover:text-white">
+                <KeyRound className="size-4" aria-hidden /> كلمة المرور
+              </Link>
             )}
             <button type="button" onClick={() => auth.signOut()} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-white/80 transition hover:bg-white/10 hover:text-white">
               <LogOut className="size-4" /> تسجيل الخروج

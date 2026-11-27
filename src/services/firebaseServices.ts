@@ -1,6 +1,9 @@
 import {
   createUserWithEmailAndPassword,
+  EmailAuthProvider,
   onAuthStateChanged,
+  reauthenticateWithCredential,
+  updatePassword,
   signInWithEmailAndPassword,
   signOut,
   type Auth,
@@ -109,6 +112,14 @@ export function createFirebaseServices(deps: { auth?: Auth; db?: Firestore } = {
       },
       async signOut() {
         await wrap(signOut(auth()))
+      },
+      async changePassword(current, next) {
+        const u = auth().currentUser
+        if (!u?.email) throw new ServiceError('invalid-transition', 'signed out')
+        if (next.length < 8) throw new ServiceError('weak-password')
+        // Firebase asks for a recent sign-in before a password change: confirm with the current password first.
+        await wrap(reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, current)))
+        await wrap(updatePassword(u, next))
       },
     },
     orgs: {

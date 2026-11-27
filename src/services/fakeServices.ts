@@ -159,6 +159,13 @@ export function createFakeServices(seed: Seed = {}) {
         state.current = { uid: u.uid, email: u.email }
         emitUser()
       },
+      async changePassword(current, next) {
+        const u = state.users.find(x => x.uid === state.current?.uid)
+        if (!u) throw new ServiceError('invalid-transition', 'signed out')
+        if (u.password !== current) throw new ServiceError('wrong-credentials')
+        if (next.length < 8) throw new ServiceError('weak-password')
+        u.password = next
+      },
       async signUp(email, password) {
         if (state.users.some(x => x.email === email.trim())) throw new ServiceError('email-in-use')
         if (password.length < 6) throw new ServiceError('weak-password')
