@@ -11,7 +11,7 @@ Success: an admin opens Wesal and, without asking anyone, can answer «وين و
 ## Decisions taken by the user
 
 - Approach **A — a standalone supervision area** inside the admin section (chosen over «view as an organisation» and over downloadable reports).
-- **View only.** The admin changes nothing beyond what it already does (approving/rejecting applications).
+- ~~View only.~~ **Changed 2026-11-27:** the admin also gets a few actions that help organisations while they use Wesal (user: «خلي عنده صلاحيات مثلا الرمز يعيد تعين المحاولات و اشياء مثل ثانيه تساعد بتحسين تجربه العملاء»). See *Admin actions*. No more screen approval rounds: build directly (user: «لا ترويني صور تصميم ابدا تنفيذ على طول»); the throwaway screens on `admin-screens` are the reference.
 - **A full step log** («سجل كامل»), chosen over keeping only the latest rejection: from now on every step of every request is appended to a log that is never overwritten, so the admin can answer «مين رفض وليش» even after several rejections.
 
 ## Approaches considered
@@ -33,15 +33,23 @@ Success: an admin opens Wesal and, without asking anyone, can answer «وين و
 5. **صفحة الطلب** (`/admin/requests/:id`): everything about it — the full dated timeline from the step log (every send, every rejection with charity, reason and time, re-sends, publication, taking, each later step, each wrong-code attempt as «محاولة رمز غلط» without its digits, unlock, meeting changes, courier changes), and the code-check step; driver or hospital courier with phone and expected time; meeting (time, link, who proposed it); receiver name and phone; delivery place; the reserving warehouse and reserved quantities; wrong-code attempts count and whether entry is locked.
 6. Navigation for the admin: نظرة عامة · الجهات · الطلبات · طلبات التسجيل (the existing review page moves to `/admin/applications`; its behaviour is unchanged).
 
+## Admin actions (builder's selection, each logged as «إدارة وصال»)
+
+1. **Reset code attempts** («صفّر محاولات الرمز»): status 5 with at least one counted attempt → `codeFails` 0 (whether or not entry is locked).
+2. **Return to the hospital** («أرجع الطلب للمستشفى»): a request waiting for a charity's answer (status 1) goes back to the hospital (status 0, not open) with a reason, so it can choose another charity or publish it. The charity is **not** marked as having rejected it. The hospital sees «أرجعت إدارة وصال الطلب من {الجمعية}» with the reason until it moves on.
+3. **Note from the admin** («ملاحظة من إدارة وصال»): a short text (2–300 characters) on any request, shown on both the hospital's and the charity's request page with its date; the admin can replace or remove it.
+
+Each action is allowed by the rules for admins only, changes only its own fields, and writes its log entry in the same transaction.
+
 ## Non-goals
 
-- Any admin action on requests, stock or organisations (cancel, unlock, edit, suspend). Possible later; it would need its own design (new write rules and an admin action log).
+- Other admin actions (cancel a request, edit stock or requests, suspend an organisation).
 - Showing receipt codes. They stay readable by the hospital alone (from dispatch on).
 - Exports (Excel/PDF), maps (phase 8), notifications.
 
 ## Anti-goals (a failure even if it works)
 
-- Any admin screen that can write, or any rule change that lets an admin write anything new.
+- An admin able to write anything beyond the three actions above (and the existing application review).
 - The admin seeing a receipt code in the app — including the last typed attempt (`codeAttempt`), which after verification equals the code: stripped in the admin data mapping and never shown.
 - Hospitals or charities gaining any read access through this work.
 - Pages that feel slow or show stale data without saying so.
@@ -58,7 +66,7 @@ Success: an admin opens Wesal and, without asking anyone, can answer «وين و
 
 - `requests/{id}/events/{n}`: one document per step — `type` (sent, published, rejected, resent, taken, accepted, preparing, dispatched, ready, arrived, codeAttempt, verified, unlocked, meetingSet, meetingRemoved, pickupSet), `at` (server time), `byRole`, `byName`, and the step's details (charity name for sent/resent/taken, reason for rejected, driver/courier for dispatched/pickupSet, meeting time and link). Never the code or a typed attempt.
 - Append-only: created in the same batch/transaction as the step it records; never updated or deleted.
-- The rules make sure no step can happen without its event (so the log can't be skipped) and that the event matches the step (type, writer, details). The mechanism is the builder's (e.g. a counter on the request that each step bumps and the event id must equal).
+- A counter `eventCount` on the request; the rules accept an event only as the next number, written in the same transaction, by the org (or admin) that makes the step, with its own name and role. *Builder's call:* the rules don't refuse a step that comes without an event (requiring it would rewrite every existing rules test); the app always logs, so only a hand-made client could leave a gap — and the request's own step dates still show what happened.
 - Readers: the admin (all events, including a collection-group listener for the overview's «آخر النشاط»), and the owning hospital (its own request's events). Charities don't read the log — other charities' rejections stay private.
 - Requests created before this change have no log: their timeline falls back to the step dates on the request plus `lastRejection` / `requestHistory`, and the page says the history before this date is partial.
 - This changes the existing write paths (send, reject, choose-again, publish, take, accept, every phase-6 step) in rules, the Firebase services and the fake services; it must keep every existing rules/unit/integration test green.
