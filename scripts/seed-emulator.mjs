@@ -111,11 +111,31 @@ reqs.push(['seed-accepted', {
   charityId: birr, charityName: 'جمعية البر بجدة', warehouseId: 'seed-wh', reservation: { [bedRow]: 5 },
   createdAt: hourAgo, sentAt: hourAgo, acceptedAt: now,
 }])
+// Admin oversight: one request الشمال rejected, waiting for the hospital's decision (shows a rejection in the full log).
+const north = uids['north@wesal.test']
+const twoHoursAgo = new Date(Date.now() - 2 * 36e5)
+reqs.push(['seed-rejected', {
+  ...base, itemId: chairs, qty: 15, priority: 'normal', beneficiaries: 15, status: 0, open: false, excluded: [north],
+  lastRejection: { charityName: 'جمعية الشمال', reason: 'الكمية محجوزة لطلب ثاني', at: hourAgo }, createdAt: twoHoursAgo, sentAt: twoHoursAgo,
+}])
+// The step log (requests/{id}/events/{n}) for every seeded request, with its counter.
+const H = { byRole: 'hospital', byName: 'مستشفى الملك فهد' }
+const B = { byRole: 'charity', byName: 'جمعية البر بجدة' }
+const logs = {
+  'seed-sent': [{ type: 'sent', charityName: 'جمعية البر بجدة', at: now, ...H }],
+  'seed-open': [{ type: 'published', at: now, ...H }],
+  'seed-accepted': [{ type: 'sent', charityName: 'جمعية البر بجدة', at: hourAgo, ...H }, { type: 'accepted', at: now, ...B }],
+  'seed-rejected': [
+    { type: 'sent', charityName: 'جمعية الشمال', at: twoHoursAgo, ...H },
+    { type: 'rejected', detail: 'الكمية محجوزة لطلب ثاني', at: hourAgo, byRole: 'charity', byName: 'جمعية الشمال' },
+  ],
+}
 const fixedCodes = { 'seed-accepted': '2468' }
 for (const [id, r] of reqs) {
-  await put(`requests/${id}`, r)
+  await put(`requests/${id}`, { ...r, eventCount: logs[id].length })
+  for (const [i, e] of logs[id].entries()) await put(`requests/${id}/events/${i + 1}`, e)
   await put(`requestSecrets/${id}`, { code: fixedCodes[id] ?? String(1000 + Math.floor(Math.random() * 9000)), hospitalId: hosp })
   await put(`requestContacts/${id}`, { hospitalId: hosp, name: 'أحمد الغامدي', phone: '0551234567' })
 }
-console.log('requests: one sent to جمعية البر, one open, one accepted (5 beds, code 2468)')
+console.log('requests: one sent to جمعية البر, one open, one accepted (5 beds, code 2468), one rejected by الشمال — each with its step log')
 console.log(`test admin: admin@wesal.test · orgs password: ${PASSWORD}`)

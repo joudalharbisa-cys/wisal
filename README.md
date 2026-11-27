@@ -100,3 +100,11 @@
 - Either side may add an optional meeting (date, time and an https link) while the request is between تمت الموافقة and وصل.
 - Lists show the latest step with its date and time.
 - Local demo: `npm run seed:emulator` also adds 5 beds already accepted by جمعية البر (code 2468) to walk the whole journey.
+
+## Admin oversight — لوحة الإشراف
+
+- The admin (`/admin`) sees everything: «نظرة عامة» (numbers, requests by stage, what needs attention — late, locked code, open requests no charity can cover — and the latest activity), «الجهات» (every organisation with its profile, warehouses and stock: quantity, reserved, available, and its requests), «الطلبات» (all requests with filters) and each request's full dated log. «طلبات التسجيل» moved to `/admin/applications`.
+- Step log: every request step is written in the same transaction as `requests/{id}/events/{n}` (who, when, details; never the receipt code). The hospital and the admin read it; charities don't. Requests from before the log show their step dates instead.
+- Admin actions, each logged as «إدارة وصال»: reset the code attempts (at arrival), return an unanswered request to the hospital (with a reason; the charity isn't counted as rejecting), and a note both sides see on the request page.
+- The admin never reads receipt codes (`requestSecrets`).
+- Local demo: `npm run seed:emulator`, then sign in as admin@wesal.test (password in the seed script).

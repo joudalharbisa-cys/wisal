@@ -1,6 +1,6 @@
 # Admin oversight (لوحة الإشراف) — design
 
-Date: 2026-11-25 · Status: draft for approval · Builds on phases 0–7 (branch `phase-6`).
+Date: 2026-11-25 · Status: approved, built on branch `admin-oversight` (2026-11-27) · Builds on phases 0–7 (branch `phase-6`).
 
 ## Intent
 
