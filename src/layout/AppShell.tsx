@@ -14,6 +14,11 @@ export default function AppShell({ title, sub, action, tall = false, children }:
   const session = useCurrentSession()
   const charityId = session.kind === 'member' && session.org?.role === 'charity' && session.org.status === 'approved' ? session.user.uid : ''
   const [waiting, setWaiting] = useState(0)
+  const [pending, setPending] = useState(0)
+  const { admin } = useServices()
+  const isAdmin = session.kind === 'admin'
+  // The admin sees how many applications wait for review, on every page.
+  useEffect(() => (isAdmin ? admin.watchPending(l => setPending(l.length)) : undefined), [admin, isAdmin])
   // Charities see how many requests wait for their answer, on every page.
   useEffect(() => (charityId ? requests.watchIncoming(charityId, l => setWaiting(l.filter(r => r.status === 1).length)) : undefined), [requests, charityId])
 
@@ -21,7 +26,10 @@ export default function AppShell({ title, sub, action, tall = false, children }:
   let nav: NavItem[] = []
   if (session.kind === 'admin') {
     who = { label: 'إدارة وصال', icon: ShieldCheck }
-    nav = [{ to: '/admin', label: 'طلبات التسجيل', end: true }]
+    nav = [
+      { to: '/admin', label: 'نظرة عامة', end: true }, { to: '/admin/orgs', label: 'الجهات' },
+      { to: '/admin/requests', label: 'الطلبات' }, { to: '/admin/applications', label: 'طلبات التسجيل', badge: pending },
+    ]
   } else if (session.kind === 'member' && session.org) {
     who = { label: session.org.name, icon: session.org.role === 'charity' ? HandHeart : Building2 }
     if (session.org.status === 'approved')

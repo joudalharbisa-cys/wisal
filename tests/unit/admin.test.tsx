@@ -18,7 +18,7 @@ function setup(orgs: Record<string, Org> = { u1: pendingOrg('مستشفى الم
   const s = createFakeServices({ users: [{ uid: 'a1', email: 'admin@test.sa', password: 'x' }], admins: ['a1'], signedIn: 'a1', orgs })
   render(
     <ServicesProvider services={s}>
-      <MemoryRouter initialEntries={['/admin']}><App /></MemoryRouter>
+      <MemoryRouter initialEntries={['/admin/applications']}><App /></MemoryRouter>
     </ServicesProvider>,
   )
   return s

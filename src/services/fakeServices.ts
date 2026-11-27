@@ -127,7 +127,7 @@ export function createFakeServices(seed: Seed = {}) {
     if (!r || !me) return null
     const o = state.orgs.get(me)
     const charity = o?.role === 'charity' && o.status === 'approved'
-    return r.hospitalId === me || r.charityId === me || (r.status === 0 && r.open && charity) ? r : null
+    return state.admins.has(me) || r.hospitalId === me || r.charityId === me || (r.status === 0 && r.open && charity) ? r : null
   }
   const actingCharity = (c: { uid: string }) => {
     const o = state.orgs.get(c.uid)
@@ -485,7 +485,7 @@ export function createFakeServices(seed: Seed = {}) {
         })
       },
       watchRejection(id, cb) {
-        return listenReq(() => { const h = state.history.get(id); cb(h && h.hospitalId === state.current?.uid ? h.lastRejection : null) })
+        return listenReq(() => { const h = state.history.get(id); cb(h && (h.hospitalId === state.current?.uid || adminNow()) ? h.lastRejection : null) })
       },
       watchCode(id, cb, onError) {
         // Like the rules: the code is readable only once out for delivery / ready for pickup (status ≥ 4).
@@ -496,7 +496,7 @@ export function createFakeServices(seed: Seed = {}) {
           const r = state.requests.get(id)
           const c = state.contacts.get(id)
           const me = state.current?.uid
-          const ok = !!r && !!c && (r.hospitalId === me || (r.charityId === me && r.status >= 2))
+          const ok = !!r && !!c && (adminNow() || r.hospitalId === me || (r.charityId === me && r.status >= 2))
           cb(ok ? { name: c!.name, phone: c!.phone } : null)
         }, onError)
       },

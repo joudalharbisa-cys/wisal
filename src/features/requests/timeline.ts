@@ -1,6 +1,6 @@
 import type { HospitalRequest, Person } from './types'
 
-export type Viewer = 'hospital' | 'charity'
+export type Viewer = 'hospital' | 'charity' | 'admin'
 /** One line of the dated timeline; `at` missing = not reached yet. */
 export type Step = { label: string; at?: Date; note?: string; warn?: boolean }
 
@@ -31,7 +31,7 @@ function dispatch(r: HospitalRequest, viewer: Viewer): Step {
 /** Every step of the request with its date; rejections by other charities are shown to the hospital only. */
 export function buildTimeline(r: HospitalRequest, viewer: Viewer): Step[] {
   const steps: Step[] = []
-  const rej = viewer === 'hospital' ? r.lastRejection : undefined
+  const rej = viewer !== 'charity' ? r.lastRejection : undefined
   const current = dispatch(r, viewer)
   if (rej) {
     steps.push({ label: 'أُرسل للجمعية', at: r.createdAt })
@@ -49,8 +49,8 @@ export function buildTimeline(r: HospitalRequest, viewer: Viewer): Step[] {
     { label: pickup ? 'جاهز للاستلام' : r.mode ? 'طلع للتوصيل' : 'التوصيل او الاستلام', at: r.outAt, note: outNote || undefined },
     { label: pickup ? 'وصل مندوب المستشفى' : 'وصل', at: r.arrivedAt },
   )
-  // The code check is the charity's step; the hospital's journey ends at arrival.
-  if (viewer === 'charity') steps.push({ label: 'تم التحقق', at: r.verifiedAt })
+  // The code check is the charity's step; the hospital's journey ends at arrival (the admin sees it).
+  if (viewer !== 'hospital') steps.push({ label: 'تم التحقق', at: r.verifiedAt })
   return steps
 }
 
